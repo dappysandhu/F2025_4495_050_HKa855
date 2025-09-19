@@ -44,8 +44,8 @@ Make sure you have installed:
 ## Installation & Setup
 ```bash
 # Clone repo
-git clone https://github.com/YourGitHubUsername/F2025_4495_050_JDo678.git
-cd F2025_4495_050_JDo678/Implementation
+git clone https://github.com/YourGitHubUsername/F2025_4495_050_HKa855.git
+cd F2025_4495_050_HKa855/Implementation
 
 # Install dependencies
 npm install
