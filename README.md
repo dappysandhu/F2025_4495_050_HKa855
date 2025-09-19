@@ -1,5 +1,7 @@
 # Community Emergency Response App (CERA)
 
+![Build](https://github.com/dappysandhu/F2025_4495_050_HKa855/actions/workflows/ci.yml/badge.svg)
+
 ## Course
 - Term: F2025
 - Course: CSIS 4495
