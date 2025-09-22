@@ -7,22 +7,23 @@ assignees: ''
 
 ---
 
-Feature: 
-labels: enhancement
-assignees: 
----
+<!-- These comments automatically delete -->
+### User Story
+<!-- A story from the user's perspective. -->
+As a {{type of user}}, I want to {{perform some task}}, so that I can {{achieve some goal}}.
 
-## Feature Description
-A clear and concise description of the feature you want to request.
 
-## Motivation
-Why is this feature important? What problem does it solve?
+### Tasks
+<!-- Tasks help developers to track small bits of work needed to meet the ACs. This is **HOW** the work will be done. -->
 
-## Proposed Solution
-How should it work? Provide details, diagrams, or examples if helpful.
+- [ ] {{ TASK 1 }}
+- [ ] {{ TASK 2 }}
+- [ ] {{ TASK 3 }}
 
-## Alternatives
-List any alternative solutions you’ve considered.
 
-## Additional Context
-Add any other context, screenshots, or references here.
+### More Information
+<!-- Add any other context here. -->
+
+
+### Screenshots
+<!-- If applicable, add a few screenshots after finishing the story. -->
