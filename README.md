@@ -67,6 +67,8 @@ Key features planned:
 - Volunteer coordination  
 - Real-time communication between users and responders
 
+---
+
 
 Figma UI Design:
 https://www.figma.com/design/vpCsZAVwk3rjv5FQdLo53S/Untitled?node-id=0-1&t=TNJXoWLICVPu13VI-1
