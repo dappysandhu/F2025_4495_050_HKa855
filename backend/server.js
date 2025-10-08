@@ -1,36 +1,27 @@
-import "dotenv/config";
-import express, { json } from "express";
-import { connect } from "mongoose";
-import cors from "cors";
-import User from "./models/User.js";
-import "dotenv/config";
+import express from "express"
+import mongoose from "mongoose"
+import cors from "cors"
+import dotenv from "dotenv"
+import authRoutes from "./routes/auth.js"
+import userRoutes from "./routes/users.js"
 
-const app = express();
-app.use(cors());
 
-// middleware
-app.use(json());
+dotenv.config()
+const app= express()
 
-// health check route
-app.get("/", (req, res) => res.send("CERA Backend Running"));
+app.use(cors())
+app.use(express.json())
 
-// test route to create a user
-app.get("/test-user", async (req, res) => {
-  const user = new User({ name: "Test User", email: "test@example.com" });
-  await user.save();
-  res.json(user);
-});
+//Routes
+app.use("/api/auth", authRoutes)
+app.use("/api/users",userRoutes)
 
-// connect to MongoDB
-connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
+//Connect to MongoDB
+mongoose.connect(process.env.MONGO_URI)
+.then(()=>{
+  console.log("Connected to MongoDB successfully");
+  app.listen(5000,()=> console.log("Server running on http://localhost:5000")
+  )
 })
-  .then(() => {
-    console.log("--------------------------------");
-    console.log("MongoDB connected successfully");
-    app.listen(5000, () => console.log("Server running on port 5000"));
-  })
-  .catch((err) => {
-    console.error("MongoDB connection failed:", err.message);
-  });
+
+.catch(err=>console.log(err))
