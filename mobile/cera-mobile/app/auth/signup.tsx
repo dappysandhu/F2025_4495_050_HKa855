@@ -7,6 +7,15 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from 'react-native';
+import { API_BASE_URL } from "@/constants/config";
+import axios from 'axios';
+
+
+type LocationType = {
+  type: "Point";
+  coordinates: [number, number];
+};
+
 
 export default function SignupScreen() {
 
@@ -15,9 +24,9 @@ export default function SignupScreen() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [skills, setSkills] = useState(''); // <-- new state
+  const [skills, setSkills] = useState(''); 
   const [role, setRole] = useState('resident');
-  const [location, setLocation] = useState(null);
+const [location, setLocation] = useState<LocationType | null>(null);
  
   const router = useRouter();
   const colorScheme = useColorScheme();
@@ -32,7 +41,7 @@ export default function SignupScreen() {
     const currentLocation=await Location.getCurrentPositionAsync({})
     setLocation({
       type:"Point",
-      coordinates:[currentLocation.coords.longitude,currentLocation.coords.latitude],
+      coordinates:[currentLocation.coords.longitude,currentLocation.coords.latitude]as [number, number],
     })
   }
 
@@ -58,9 +67,19 @@ export default function SignupScreen() {
       certified:false,
       location,
     }
-    console.log('Signup data:', signupData);
-    Alert.alert('Success', 'Signup data logged in console.');
-    router.push('/login');
+
+    try{
+      const response=await axios.post(`${API_BASE_URL}/auth/register`, signupData)
+      console.log("Signup success", response.data)
+      Alert.alert("Success","Account created successfully")
+      router.push('/auth/login')
+    }
+    catch(error:any){
+      console.error(error);
+      Alert.alert('Signup failed', error.response?.data?.message || 'Error connecting to server.');
+
+    }
+   
 
   }
 
