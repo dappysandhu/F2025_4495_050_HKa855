@@ -3,20 +3,52 @@ import { ThemedView } from '@/components/themed-view';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useRouter } from 'expo-router';
 import React, {useState} from 'react';
-import { StyleSheet, TextInput, TouchableOpacity,View} from 'react-native'
+import { StyleSheet, TextInput, TouchableOpacity,View,Alert} from 'react-native'
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from 'react-native'; 
+import { API_BASE_URL } from "@/constants/config";
 
 export default function LoginScreen(){
 
   const [email,setEmail]=useState('')
   const [password,setPassword]=useState('')
   const [hidePassword,setHidePassword]=useState(true)
- const router=useRouter()
+  const [loading, setLoading] = useState(false);
+  const router=useRouter()
 
    const colorScheme = useColorScheme(); 
   const themeColors = Colors[colorScheme || 'light'];
 
+
+  const handleLogin=async()=>{
+    if (!email || !password) {
+      Alert.alert('Missing Fields', 'Please enter both email and password.');
+      return;
+    }
+    try{
+      setLoading(true)
+      const response=await fetch(`${API_BASE_URL}/auth/login`,{
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+      const data = await response.json();
+      setLoading(false);
+       if (response.ok) {
+        Alert.alert('Success', 'Login successful!');
+        console.log('User Token:', data.token);
+        router.push('/tabs/home'); 
+      } else {
+        Alert.alert('Login Failed', data.message || 'Invalid credentials');
+      }
+    }
+    catch(error){
+      setLoading(false);
+      console.error('Login error:', error);
+      Alert.alert('Error', 'Unable to connect to the server.');
+    }
+
+  }
   return(
     <ThemedView style={[styles.container, { backgroundColor: themeColors.background }]}>
       <ThemedText type="title" style={styles.logoText}>CERA</ThemedText>
@@ -56,8 +88,10 @@ export default function LoginScreen(){
 
       </View>
 
-      <TouchableOpacity style={styles.button} onPress={()=> console.log('login')}>
-        <ThemedText type="defaultSemiBold" style={styles.buttonText}>Login</ThemedText>
+      <TouchableOpacity style={styles.button}  onPress={handleLogin}  disabled={loading}>
+        <ThemedText type="defaultSemiBold" style={styles.buttonText}>
+            {loading ? 'Logging in...' : 'Login'}
+        </ThemedText>
 
       </TouchableOpacity>
 
@@ -70,7 +104,7 @@ export default function LoginScreen(){
 
       <ThemedText style={styles.signupText}>
         Don't have an account ? {' '}
-        <ThemedText type="link" onPress={()=> router.push('/signup')} style={{color:'#BC4B2F'}}>
+        <ThemedText type="link" onPress={()=> router.push('/auth/signup')} style={{color:'#BC4B2F'}}>
           Sign up
       </ThemedText>
       </ThemedText>
