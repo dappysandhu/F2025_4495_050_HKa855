@@ -48,6 +48,25 @@ router.post("/register", async(req, res)=>{
 router.post("/login", async(req,res)=>{
     try{
         const{email,password}=req.body
+
+        //Default coordinator
+
+        const defaultCoordinator={
+            email:"coordinator@gmail.com",
+            password:"coordinator123",
+            role:"coordinator",
+            id:"coordinator123",
+        }
+
+        //if login matches with credentials
+        if(email===defaultCoordinator.email && password===defaultCoordinator.password){
+            const token=jwt.sign(
+                {id:defaultCoordinator.id , role:defaultCoordinator.role},
+                process.env.JWT_SECRET,
+                {expiresIn:"7d"}
+            )
+            return res.json({token,user:defaultCoordinator})
+        }
         const user= await User.findOne({email})
 
         if(!user)
