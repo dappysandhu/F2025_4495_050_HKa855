@@ -7,6 +7,7 @@ import { StyleSheet, TextInput, TouchableOpacity,View,Alert} from 'react-native'
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from 'react-native'; 
 import { API_BASE_URL } from "@/constants/config";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function LoginScreen(){
 
@@ -20,29 +21,37 @@ export default function LoginScreen(){
   const themeColors = Colors[colorScheme || 'light'];
 
 
-  const handleLogin=async()=>{
+  const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert('Missing Fields', 'Please enter both email and password.');
       return;
     }
-    try{
-      setLoading(true)
-      const response=await fetch(`${API_BASE_URL}/auth/login`,{
+
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
-      })
+      });
+
       const data = await response.json();
       setLoading(false);
-       if (response.ok) {
-        Alert.alert('Success', 'Login successful!');
+
+      if (response.ok) {
+        console.log('Login success');
         console.log('User Token:', data.token);
-        router.push('/tabs/home'); 
+
+        // Save the token to AsyncStorage
+        await AsyncStorage.setItem('token', data.token);
+        console.log('💾 Token saved to AsyncStorage');
+
+        Alert.alert('Success', 'Login successful!');
+        setTimeout(() => router.push('/tabs/home'), 300);
       } else {
         Alert.alert('Login Failed', data.message || 'Invalid credentials');
       }
-    }
-    catch(error){
+    } catch (error) {
       setLoading(false);
       console.error('Login error:', error);
       Alert.alert('Error', 'Unable to connect to the server.');
