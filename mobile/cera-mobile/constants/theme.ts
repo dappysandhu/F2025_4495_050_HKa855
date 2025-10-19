@@ -1,42 +1,70 @@
-/**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
- */
-
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
+const accentOrange = '#D45433'; // CERA accent
+const successGreen = '#2FB970';
+const dangerRed = '#E0574F';
+const warningYellow = '#F0A500';
+const neutralGray = '#9BA1A6';
+
+const tintColorLight = accentOrange;
 const tintColorDark = '#fff';
 
 export const Colors = {
   light: {
     text: '#11181C',
-    background: '#fff',
+    background: '#ffffff',
     tint: tintColorLight,
     icon: '#687076',
     tabIconDefault: '#687076',
     tabIconSelected: tintColorLight,
+
+    // extended semantic palette
+    card: '#F9FAFB',
+    cardAlt: '#F3F4F6',
+    border: '#E5E7EB',
+    subtext: '#6B7280',
+    accent: accentOrange,
+    success: successGreen,
+    danger: dangerRed,
+    warning: warningYellow,
+    muted: '#9CA3AF',
   },
   dark: {
-    text: '#ffffff',
+    text: '#FFFFFF',
     background: '#1C1C1C',
     tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
+    icon: neutralGray,
+    tabIconDefault: neutralGray,
     tabIconSelected: tintColorDark,
+
+    // extended semantic palette
+    card: '#1F1F1F',
+    cardAlt: '#2A2A2A',
+    border: '#2E2E2E',
+    subtext: '#B8BBC6',
+    accent: accentOrange,
+    success: successGreen,
+    danger: dangerRed,
+    warning: warningYellow,
+    muted: '#767B86',
   },
 };
 
+/**
+ * Consistent font family mappings for each platform
+ */
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
     sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
     serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
     rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
     mono: 'ui-monospace',
+  },
+  android: {
+    sans: 'normal',
+    serif: 'serif',
+    rounded: 'sans-serif-medium',
+    mono: 'monospace',
   },
   default: {
     sans: 'normal',

@@ -1,31 +1,82 @@
 import express from "express";
-import Incident from "../models/Incident.js";
+import multer from "multer";
+import fs from "fs";
+import path from "path";
+import Incident from "../models/Incidents.js";
 import User from "../models/User.js";
 import { verifyToken, isCoordinator } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// report a new incident (Resident)
-router.post("/", verifyToken, async (req, res) => {
-  try {
-    const { type, description, photoUrl, location } = req.body;
+// Ensure uploads folder exists
+const uploadDir = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
-    if (!type || !location?.coordinates || location.coordinates.length !== 2) {
-      return res.status(400).json({ message: "type and valid location are required" });
+// Multer storage config
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename: (req, file, cb) => {
+    const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, `${unique}-${file.originalname}`);
+  },
+});
+const upload = multer({ storage });
+
+// Log every request
+router.use((req, res, next) => {
+  console.log("Incidents route hit:", req.method, req.originalUrl);
+  next();
+});
+
+// create an incident (Resident)
+router.post("/", verifyToken, upload.array("photos", 5), async (req, res) => {
+  const userId = req.user.id || req.user._id;
+  try {
+    const { type, description, severity, affected, location } = req.body;
+
+    // Parse location if stringified
+    const parsedLocation =
+      typeof location === "string" ? JSON.parse(location) : location;
+
+    // Get uploaded file paths
+    const photoPaths = req.files?.map((f) => `/uploads/${path.basename(f.path)}`) || [];
+
+    if (!type || !parsedLocation?.coordinates) {
+      return res
+        .status(400)
+        .json({ message: "Type and valid location are required." });
     }
 
     const incident = await Incident.create({
-      reporter: req.user.id,
+      reporter: userId,
       type,
       description: description || "",
-      photoUrl: photoUrl || "",
-      location,
-      // coordinator may approve later
-      status: "pending", 
+      photos: photoPaths,
+      location: parsedLocation,
+      severity: severity || "Low",
+      affected: Number(affected) || 0,
+      status: "pending",
     });
 
     res.status(201).json(incident);
   } catch (err) {
+    console.error("Incident creation error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// get all incidents 
+router.get("/", verifyToken, async (req, res) => {
+  try {
+    const { status, type } = req.query;
+    const query = {};
+    if (status) query.status = status;
+    if (type) query.type = type;
+
+    const incidents = await Incident.find(query).sort({ createdAt: -1 });
+    res.json(incidents);
+  } catch (err) {
+    console.error("Error fetching incidents:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -33,82 +84,98 @@ router.post("/", verifyToken, async (req, res) => {
 // get my incidents (Resident)
 router.get("/my", verifyToken, async (req, res) => {
   try {
-    const incidents = await Incident.find({ reporter: req.user.id }).sort({ createdAt: -1 });
+    const userId = req.user.id || req.user._id;
+    const incidents = await Incident.find({ reporter: userId })
+      .populate("reporter", "name email role")
+      .populate("assignedVolunteers", "name email role")
+      .sort({ createdAt: -1 });
+
     res.json(incidents);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// get incidents nearby (Volunteer)
+// get nearby incidents (Volunteer)
 router.get("/nearby", verifyToken, async (req, res) => {
+  const userId = req.user.id || req.user._id;
   try {
-    const { lng, lat, maxKm = 10, unassigned } = req.query;
-    if (!lng || !lat) {
-      return res.status(400).json({ message: "lng and lat query params required" });
+    const user = await User.findById(userId);
+    if (!user || user.role !== "volunteer") {
+      return res
+        .status(403)
+        .json({ message: "Only volunteers can view nearby incidents" });
     }
+
+    const { lng, lat, maxKm = 10, unassigned } = req.query;
+    if (!lng || !lat)
+      return res.status(400).json({ message: "lng and lat required" });
 
     const query = {
       status: { $in: ["pending", "approved", "assigned", "in_progress"] },
       location: {
         $near: {
-          $geometry: { type: "Point", coordinates: [parseFloat(lng), parseFloat(lat)] },
+          $geometry: {
+            type: "Point",
+            coordinates: [parseFloat(lng), parseFloat(lat)],
+          },
           $maxDistance: parseFloat(maxKm) * 1000,
         },
       },
     };
 
-    if (String(unassigned) === "true") {
+    if (String(unassigned) === "true")
       query.assignedVolunteers = { $size: 0 };
-    }
 
-    const incidents = await Incident.find(query).limit(50);
+    const incidents = await Incident.find(query)
+      .populate("reporter", "name email role")
+      .populate("assignedVolunteers", "name email role")
+      .limit(50);
+
     res.json(incidents);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// accept an incident (Volunteer)
+// incident handling approval, acceptance, status updates
 router.post("/:id/accept", verifyToken, async (req, res) => {
+  const userId = req.user.id || req.user._id;
   try {
-    const { id } = req.params;
-
-    // check if user is volunteer
-    const user = await User.findById(req.user.id);
-    if (user.role !== "volunteer") {
-      return res.status(403).json({ message: "Only volunteers can accept tasks" });
-    }
+    const user = await User.findById(userId);
+    if (user.role !== "volunteer")
+      return res.status(403).json({ message: "Only volunteers can accept" });
 
     const incident = await Incident.findByIdAndUpdate(
-      id,
+      req.params.id,
       {
-        $addToSet: { assignedVolunteers: req.user.id },
+        $addToSet: { assignedVolunteers: userId },
         $set: { status: "assigned" },
       },
       { new: true }
     );
 
-    if (!incident) return res.status(404).json({ message: "Incident not found" });
+    if (!incident) return res.status(404).json({ message: "Not found" });
     res.json({ message: "Accepted", incident });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// decline an incident (colunteer)
 router.post("/:id/decline", verifyToken, async (req, res) => {
+  const userId = req.user.id || req.user._id;
   try {
-    const { id } = req.params;
     const incident = await Incident.findByIdAndUpdate(
-      id,
-      { $pull: { assignedVolunteers: req.user.id } },
+      req.params.id,
+      { $pull: { assignedVolunteers: userId } },
       { new: true }
     );
-    if (!incident) return res.status(404).json({ message: "Incident not found" });
+    if (!incident) return res.status(404).json({ message: "Not found" });
 
-    // if no volunteers left, optionally set back to approved/pending
-    if (incident.assignedVolunteers.length === 0 && incident.status === "assigned") {
+    if (
+      incident.assignedVolunteers.length === 0 &&
+      incident.status === "assigned"
+    ) {
       incident.status = "approved";
       await incident.save();
     }
@@ -119,43 +186,68 @@ router.post("/:id/decline", verifyToken, async (req, res) => {
   }
 });
 
-// ypdate incident status (Volunteer or Coordinator)
 router.patch("/:id/status", verifyToken, async (req, res) => {
   try {
-    const { id } = req.params;
-    const { status } = req.body; // "approved" | "in_progress" | "resolved" | etc.
-
+    const { status } = req.body;
     const valid = ["pending", "approved", "assigned", "in_progress", "resolved"];
-    if (!valid.includes(status)) return res.status(400).json({ message: "Invalid status" });
+    if (!valid.includes(status))
+      return res.status(400).json({ message: "Invalid status" });
 
-    const incident = await Incident.findByIdAndUpdate(id, { status }, { new: true });
-    if (!incident) return res.status(404).json({ message: "Incident not found" });
+    const incident = await Incident.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    );
+    if (!incident) return res.status(404).json({ message: "Not found" });
     res.json(incident);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// incidents assigned to me (Volunteer) 
 router.get("/assigned/me", verifyToken, async (req, res) => {
+  const userId = req.user.id || req.user._id;
   try {
     const incidents = await Incident.find({
-      assignedVolunteers: req.user.id,
+      assignedVolunteers: userId,
       status: { $in: ["assigned", "in_progress"] },
-    }).sort({ updatedAt: -1 });
+    })
+      .populate("reporter", "name email role")
+      .populate("assignedVolunteers", "name email role")
+      .sort({ updatedAt: -1 });
     res.json(incidents);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// incidents approval by coordinators 
 router.post("/:id/approve", verifyToken, isCoordinator, async (req, res) => {
   try {
-    const { id } = req.params;
-    const incident = await Incident.findByIdAndUpdate(id, { status: "approved" }, { new: true });
-    if (!incident) return res.status(404).json({ message: "Incident not found" });
+    const incident = await Incident.findByIdAndUpdate(
+      req.params.id,
+      { status: "approved" },
+      { new: true }
+    );
+    if (!incident) return res.status(404).json({ message: "Not found" });
     res.json({ message: "Incident approved", incident });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/:id/dispatch", verifyToken, isCoordinator, async (req, res) => {
+  try {
+    const { volunteerIds = [] } = req.body;
+    const incident = await Incident.findByIdAndUpdate(
+      req.params.id,
+      {
+        $addToSet: { assignedVolunteers: { $each: volunteerIds } },
+        $set: { status: "assigned" },
+      },
+      { new: true }
+    );
+    if (!incident) return res.status(404).json({ message: "Not found" });
+    res.json({ message: "Incident dispatched", incident });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -44,7 +44,7 @@ export default function LoginScreen(){
 
         // Save the token to AsyncStorage
         await AsyncStorage.setItem('token', data.token);
-        console.log('💾 Token saved to AsyncStorage');
+        console.log('Token saved to AsyncStorage');
 
         Alert.alert('Success', 'Login successful!');
         setTimeout(() => router.push('/tabs/home'), 300);
