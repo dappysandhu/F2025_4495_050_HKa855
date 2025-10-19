@@ -7,6 +7,8 @@ import userRoutes from "./routes/users.js"
 import incidentRoutes from "./routes/incidents.js"
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import path from "path";
+import { fileURLToPath } from "url";
 
 
 dotenv.config()
@@ -25,8 +27,12 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-app.use("/public", express.static("public"));
-app.use("/uploads", express.static("uploads"));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Serve uploaded files
+app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
+
 
 
 //Routes

@@ -44,13 +44,20 @@ export default function IncidentCard({
       </View>
 
       {/* Photo */}
-      {incident.photoUrl || (incident.photos && incident.photos.length > 0) ? (
+
+      {incident.photoUrl ? (
         <Image
-          source={{ uri: incident.photoUrl || incident.photos[0] }}
-          style={styles.photo}
+          source={{ uri: incident.photoUrl }}
+          style={{
+            width: "100%",
+            height: 180,
+            borderRadius: 12,
+            marginTop: 8,
+          }}
           resizeMode="cover"
         />
       ) : null}
+
 
       {/* Description */}
       {incident.description ? (

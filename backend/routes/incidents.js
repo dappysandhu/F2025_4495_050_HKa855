@@ -8,19 +8,21 @@ import { verifyToken, isCoordinator } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// Ensure uploads folder exists
-const uploadDir = path.join(process.cwd(), "uploads");
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
-
-// Multer storage config
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
+  destination: (req, file, cb) => cb(null, "public/uploads"),
   filename: (req, file, cb) => {
     const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, `${unique}-${file.originalname}`);
+    cb(null, unique + path.extname(file.originalname));
   },
 });
+
 const upload = multer({ storage });
+
+// log every request
+router.use((req, res, next) => {
+  console.log("Incidents route hit:", req.method, req.originalUrl);
+  next();
+});
 
 // Log every request
 router.use((req, res, next) => {
@@ -31,30 +33,41 @@ router.use((req, res, next) => {
 // create an incident (Resident)
 router.post("/", verifyToken, upload.array("photos", 5), async (req, res) => {
   const userId = req.user.id || req.user._id;
+
   try {
     const { type, description, severity, affected, location } = req.body;
+    const loc = location ? JSON.parse(location) : null;
 
-    // Parse location if stringified
-    const parsedLocation =
-      typeof location === "string" ? JSON.parse(location) : location;
+    // build photo URLs
+    const photos = (req.files || []).map(
+      (file) => `${req.protocol}://${req.get("host")}/uploads/${file.filename}`
+    );
 
-    // Get uploaded file paths
-    const photoPaths = req.files?.map((f) => `/uploads/${path.basename(f.path)}`) || [];
-
-    if (!type || !parsedLocation?.coordinates) {
-      return res
-        .status(400)
-        .json({ message: "Type and valid location are required." });
-    }
+    // default to “other” if unknown
+    const validTypes = [
+      "fire",
+      "flood",
+      "medical",
+      "rescue",
+      "accident",
+      "crime",
+      "earthquake",
+      "other",
+    ];
+    const safeType = validTypes.includes(type?.toLowerCase())
+      ? type.toLowerCase()
+      : "other";
 
     const incident = await Incident.create({
       reporter: userId,
-      type,
-      description: description || "",
-      photos: photoPaths,
-      location: parsedLocation,
+      type: safeType,
+      customType: safeType === "other" ? type : "",
+      description,
       severity: severity || "Low",
-      affected: Number(affected) || 0,
+      affected: affected || 0,
+      location: loc,
+      photos,
+      photoUrl: photos[0] || "",
       status: "pending",
     });
 
