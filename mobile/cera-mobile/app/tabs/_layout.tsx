@@ -1,7 +1,7 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-
+import { router } from "expo-router";
 export default function TabsLayout() {
   return (
     <Tabs
@@ -44,14 +44,20 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="profile"
-        options={{
-          title: "Profile",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-outline" color={color} size={size} />
-          ),
-        }}
-      />
+  name="profile"
+  options={{
+    title: "Profile",
+    tabBarIcon: ({ color, size }) => (
+      <Ionicons name="person-outline" color={color} size={size} />
+    ),
+  }}
+  listeners={({ navigation }) => ({
+    tabPress: (e) => {
+      e.preventDefault(); 
+      router.push("/tabs/profile");
+    },
+  })}
+/>
     </Tabs>
   );
 }

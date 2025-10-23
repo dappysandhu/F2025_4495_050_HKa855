@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -16,6 +16,7 @@ import { useColorScheme } from "react-native";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native"; // 👈 added
 
 export default function ProfileScreen() {
   const [user, setUser] = useState<any>(null);
@@ -24,6 +25,7 @@ export default function ProfileScreen() {
   const C = Colors[colorScheme || "light"];
   const router = useRouter();
 
+  // ------------------ Fetch User ------------------
   const fetchUser = async () => {
     try {
       const token = await AsyncStorage.getItem("token");
@@ -41,14 +43,17 @@ export default function ProfileScreen() {
     }
   };
 
+  // ✅ Re-fetch every time the screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      fetchUser();
+    }, [])
+  );
+
   const handleLogout = async () => {
     await AsyncStorage.removeItem("token");
     router.replace("/auth/login");
   };
-
-  useEffect(() => {
-    fetchUser();
-  }, []);
 
   // ------------------ Loading ------------------
   if (loading) {
@@ -88,7 +93,10 @@ export default function ProfileScreen() {
       <SafeAreaView>
         <View style={styles.profileHeader}>
           <Ionicons name="person-circle-outline" size={90} color={C.accent} />
-          <ThemedText type="defaultSemiBold" style={[styles.name, { color: C.text }]}>
+          <ThemedText
+            type="defaultSemiBold"
+            style={[styles.name, { color: C.text }]}
+          >
             {user.username}
           </ThemedText>
           <ThemedText style={[styles.email, { color: C.subtext }]}>
@@ -98,18 +106,17 @@ export default function ProfileScreen() {
             {user.role?.toUpperCase()}
           </ThemedText>
 
-         <TouchableOpacity
-           style={[
-             styles.editBtn,
-             { backgroundColor: colorScheme === "dark" ? "#BC4B2F" : C.tint },
-           ]}
-           disabled
-         >
-           <ThemedText style={[styles.editText, { color: "#fff" }]}>
-             Edit Profile
-           </ThemedText>
-         </TouchableOpacity>
-
+          <TouchableOpacity
+            style={[
+              styles.editBtn,
+              { backgroundColor: colorScheme === "dark" ? "#BC4B2F" : C.tint },
+            ]}
+            onPress={() => router.push("/tabs/profile/edit_profile")}
+          >
+            <ThemedText style={[styles.editText, { color: "#fff" }]}>
+              Edit Profile
+            </ThemedText>
+          </TouchableOpacity>
         </View>
 
         {/* Menu Section */}
@@ -151,10 +158,7 @@ export default function ProfileScreen() {
             ]}
           />
 
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={handleLogout}
-          >
+          <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={24} color={C.accent} />
             <ThemedText
               style={[styles.menuText, { color: C.accent, fontWeight: "700" }]}

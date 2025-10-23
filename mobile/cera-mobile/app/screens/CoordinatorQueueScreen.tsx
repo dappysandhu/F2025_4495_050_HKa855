@@ -17,6 +17,7 @@ import IncidentCard from "@/components/IncidentCard";
 import api from "@/services/api";
 import Button from "@/components/ui/Button";
 import BackHeader from "@/components/ui/BackHeader";
+import { createIconSetFromFontello } from "@expo/vector-icons";
 
 export default function CoordinatorQueueScreen() {
   const scheme = useColorScheme() || "dark";
@@ -242,7 +243,7 @@ export default function CoordinatorQueueScreen() {
                       color: selectedVolunteers.includes(item._id) ? "#fff" : C.text,
                     }}
                   >
-                    {item.name || item.email}
+                    {item.username || item.email}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -278,13 +279,13 @@ const styles = StyleSheet.create({
   scrollContainer: { flexGrow: 1, padding: 16 },
   filterScroll: {
     marginTop: 10,
-    marginBottom: 6,
-    height: 50,
+    marginBottom: 10,
+    minHeight: 36,
+    maxHeight: 44,
   },
   filterBtn: {
     paddingVertical: 12,
     paddingHorizontal: 14,
-    minHeight: 24,
     borderWidth: 1,
     borderRadius: 12,
     marginHorizontal: 5,
