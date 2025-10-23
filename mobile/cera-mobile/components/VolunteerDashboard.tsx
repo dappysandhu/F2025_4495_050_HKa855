@@ -7,10 +7,10 @@ export default function VolunteerDashboard({ user }: { user: any }) {
   return (
     <View style={styles.container}>
       <Text style={styles.greet}>Hey {user.username}, ready to help? </Text>
-      <TouchableOpacity style={styles.btn} onPress={() => router.push("/tabs/tasks" as any)}>
+      <TouchableOpacity style={styles.btn} onPress={() => router.push("/tabs/incidents" as any)}>
         <Text style={styles.btnText}>View Nearby Incidents</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.btn} onPress={() => router.push("/tabs/my-tasks" as any)}>
+      <TouchableOpacity style={styles.btn} onPress={() => router.push("/tabs/tasks" as any)}>
         <Text style={styles.btnText}>My Assigned Tasks</Text>
       </TouchableOpacity>
     </View>

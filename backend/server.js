@@ -9,6 +9,7 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import path from "path";
 import { fileURLToPath } from "url";
+import notificationRoutes from "./routes/notifications.js";
 
 
 dotenv.config()
@@ -36,9 +37,10 @@ app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
 
 
 //Routes
-app.use("/api/auth", authRoutes)
-app.use("/api/users",userRoutes)
-app.use("/api/incidents", incidentRoutes); 
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/incidents", incidentRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 
 // Health check route (handy for testing)

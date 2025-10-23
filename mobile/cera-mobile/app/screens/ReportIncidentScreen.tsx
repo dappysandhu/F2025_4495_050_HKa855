@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
@@ -23,6 +24,7 @@ import { useColorScheme } from "react-native";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import api from "@/services/api";
+import BackHeader from "@/components/ui/BackHeader";
 
 const { width } = Dimensions.get("window");
 
@@ -36,9 +38,10 @@ export default function ReportIncidentScreen() {
   const [description, setDescription] = useState("");
   const [photo, setPhoto] = useState<{ uri: string; aspectRatio: number } | null>(null);
   const [loc, setLoc] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); 
   const [severity, setSeverity] = useState("");
   const [affected, setAffected] = useState("");
+  const [locLoading, setLocLoading] = useState(false); 
 
   const predefinedTypes = [
     "Fire",
@@ -50,7 +53,6 @@ export default function ReportIncidentScreen() {
     "Others",
   ];
 
-  // upload photo
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
@@ -73,42 +75,17 @@ export default function ReportIncidentScreen() {
     }
   };
 
-  // get location
   const getLocation = async () => {
     try {
-      Toast.show({
-        type: "info",
-        text1: "Requesting Location...",
-        text2: "Please allow access when prompted.",
-        position: "bottom",
-        visibilityTime: 2000,
-      });
-
-      let { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
+      setLocLoading(true);
+      const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        const res = await Location.requestForegroundPermissionsAsync();
-        status = res.status;
-        canAskAgain = res.canAskAgain;
-      }
-
-      if (status !== "granted") {
-        if (!canAskAgain) {
-          Alert.alert(
-            "Permission Required",
-            "Location permission permanently denied. Please enable it in system settings."
-          );
-        } else {
-          Alert.alert(
-            "Permission Needed",
-            "Please grant location access so we can capture your position."
-          );
-        }
+        Alert.alert("Permission Required", "Please enable location access to set your position.");
         return;
       }
 
       const pos = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
-        mayShowUserSettingsDialog: true,
       });
 
       let name: string | undefined;
@@ -134,82 +111,69 @@ export default function ReportIncidentScreen() {
       });
     } catch (error: any) {
       console.error("Location fetch error:", error);
-      Alert.alert(
-        "Error",
-        error?.message?.includes("denied")
-          ? "Please allow location access from app settings."
-          : "Unable to fetch location. Try again outdoors."
-      );
+      Alert.alert("Error", "Unable to fetch location. Try again outdoors.");
+    } finally {
+      setLocLoading(false);
     }
   };
 
-  // Submit incident
- const submit = async () => {
-  const incidentType = type === "Others" ? "other" : type.toLowerCase();
+  const submit = async () => {
+    const incidentType = type === "Others" ? "other" : type.toLowerCase();
     const customTypeValue = type === "Others" ? customType.trim() : "";
 
-  if (!incidentType)
-    return Alert.alert("Missing info", "Please select or enter an incident type.");
-  if (!description.trim())
-    return Alert.alert("Missing info", "Please enter a description.");
-  if (!loc?.coordinates)
-    return Alert.alert("Missing location", "Please set your location before submitting.");
-  if (!photo)
-    return Alert.alert("Missing photo", "Please capture a photo before submitting.");
+    if (!incidentType) return Alert.alert("Missing info", "Please select an incident type.");
+    if (!description.trim()) return Alert.alert("Missing info", "Please enter a description.");
+    if (!loc?.coordinates) return Alert.alert("Missing location", "Please set your location.");
+    if (!photo) return Alert.alert("Missing photo", "Please capture a photo before submitting.");
 
-  setLoading(true);
-  try {
-    const formData = new FormData();
-    formData.append("type", incidentType);
-formData.append("customType", customTypeValue);
-    formData.append("description", description);
-    formData.append("severity", severity);
-    formData.append("affected", affected.toString());
-    formData.append("location", JSON.stringify(loc));
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("type", incidentType);
+      formData.append("customType", customTypeValue);
+      formData.append("description", description);
+      formData.append("severity", severity);
+      formData.append("affected", affected.toString());
+      formData.append("location", JSON.stringify(loc));
 
-    const isBase64 = photo.uri.startsWith("data:");
-
-    formData.append(
-      "photos",
-      {
-        uri: isBase64 ? photo.uri : photo.uri,
+      formData.append("photos", {
+        uri: photo.uri,
         name: "photo.jpg",
         type: "image/jpeg",
-      } as any
-    );
+      } as any);
 
-    await api.post("/incidents", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+      await api.post("/incidents", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
 
-    Toast.show({
-      type: "success",
-      text1: "Incident Reported",
-      text2: "Your report was submitted successfully!",
-      position: "bottom",
-    });
+      Toast.show({
+        type: "success",
+        text1: "Incident Reported",
+        text2: "Your report was submitted successfully!",
+        position: "bottom",
+      });
 
-    setType("");
-    setCustomType("");
-    setDescription("");
-    setPhoto(null);
-    setLoc(null);
-    setSeverity("");
-    setAffected("");
-    setTimeout(() => router.replace("/tabs/home"), 1200);
-  } catch (e: any) {
-    console.error("Report submit error:", e);
-    Alert.alert("Error", e?.response?.data?.message ?? "Could not submit report.");
-  } finally {
-    setLoading(false);
-  }
-};
-
+      setType("");
+      setCustomType("");
+      setDescription("");
+      setPhoto(null);
+      setLoc(null);
+      setSeverity("");
+      setAffected("");
+      setTimeout(() => router.replace("/tabs/home"), 1200);
+    } catch (e: any) {
+      console.error("Report submit error:", e);
+      Alert.alert("Error", e?.response?.data?.message ?? "Could not submit report.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const removePhoto = () => setPhoto(null);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: C.background }]}>
+      <BackHeader title="Report Incident" />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
@@ -296,8 +260,8 @@ formData.append("customType", customTypeValue);
                           ? s === "High"
                             ? "#ff0000"
                             : s === "Medium"
-                            ? "#E6A23C"
-                            : "#67C23A"
+                              ? "#E6A23C"
+                              : "#67C23A"
                           : C.cardAlt,
                       borderColor: C.border,
                     },
@@ -335,8 +299,9 @@ formData.append("customType", customTypeValue);
             <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
               <Button title={photo ? "Retake Photo" : "Capture Photo"} onPress={takePhoto} />
               <Button
-                title={loc ? "Location Set" : "Use My Location"}
+                title={locLoading ? "Setting..." : loc ? "Location Set" : "Use My Location"}
                 variant={loc ? "primary" : "outline"}
+                loading={locLoading}
                 onPress={getLocation}
               />
             </View>
@@ -393,13 +358,21 @@ formData.append("customType", customTypeValue);
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Fullscreen loader */}
+      {loading && (
+        <View style={styles.overlay}>
+          <ActivityIndicator size="large" color={C.accent} />
+          <Text style={{ color: C.text, marginTop: 10 }}>Submitting Report...</Text>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
-  scrollContainer: { flexGrow: 1, padding: 16, justifyContent: "space-between" },
+  scrollContainer: { flexGrow: 1, padding: 16 },
   title: { fontSize: 24, fontWeight: "800", marginBottom: 12, textAlign: "center" },
   label: { fontSize: 13, marginBottom: 6 },
   input: {
@@ -447,5 +420,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#0008",
     borderRadius: 999,
     padding: 6,
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#00000090",
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

@@ -2,22 +2,26 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useRouter } from 'expo-router';
-import React, {useState} from 'react';
-import { StyleSheet, TextInput, TouchableOpacity,View,Alert} from 'react-native'
+import React, { useState } from 'react';
+import { StyleSheet, TextInput, TouchableOpacity, View, Alert, Platform } from 'react-native'
 import { Colors } from '@/constants/theme';
-import { useColorScheme } from 'react-native'; 
+import { useColorScheme } from 'react-native';
 import { API_BASE_URL } from "@/constants/config";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { registerForPushNotificationsAsync } from '@/utils/notifications';
+import { useAuth } from '@/context/AuthContext';
 
-export default function LoginScreen(){
+export default function LoginScreen() {
 
-  const [email,setEmail]=useState('')
-  const [password,setPassword]=useState('')
-  const [hidePassword,setHidePassword]=useState(true)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [hidePassword, setHidePassword] = useState(true)
   const [loading, setLoading] = useState(false);
-  const router=useRouter()
+  const router = useRouter()
+  const { login } = useAuth();
 
-   const colorScheme = useColorScheme(); 
+
+  const colorScheme = useColorScheme();
   const themeColors = Colors[colorScheme || 'light'];
 
 
@@ -39,16 +43,33 @@ export default function LoginScreen(){
       setLoading(false);
 
       if (response.ok) {
-        console.log('Login success');
-        console.log('User Token:', data.token);
+        console.log("Login success");
 
-        // Save the token to AsyncStorage
-        await AsyncStorage.setItem('token', data.token);
-        console.log('Token saved to AsyncStorage');
+        // Save both token and user
+        await AsyncStorage.setItem("token", data.token);
+        await AsyncStorage.setItem("user", JSON.stringify(data.user));
 
-        Alert.alert('Success', 'Login successful!');
-        setTimeout(() => router.push('/tabs/home'), 300);
-      } else {
+        console.log("Saved token and user:", data.user);
+
+        // Also call AuthContext.login so it updates immediately
+        await login(data.token, data.user);
+
+        // Register for push notification
+        const expoPushToken = await registerForPushNotificationsAsync();
+        if (expoPushToken) {
+          await fetch(`${API_BASE_URL}/users/me/push-token`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${data.token}`,
+            },
+            body: JSON.stringify({ token: expoPushToken, platform: Platform.OS }),
+          });
+        }
+
+        router.push("/tabs/home");
+      }
+      else {
         Alert.alert('Login Failed', data.message || 'Invalid credentials');
       }
     } catch (error) {
@@ -58,64 +79,64 @@ export default function LoginScreen(){
     }
 
   }
-  return(
+  return (
     <ThemedView style={[styles.container, { backgroundColor: themeColors.background }]}>
       <ThemedText type="title" style={styles.logoText}>CERA</ThemedText>
 
-      <TextInput style={[styles.input,{ 
-    backgroundColor: themeColors.background, 
-    color: themeColors.text, 
-    borderColor: themeColors.icon, 
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginVertical: 10,
-  }]}  
-      placeholder='Enter your Email'
-      placeholderTextColor={themeColors.icon}
-      value={email}
-      onChangeText={setEmail}
-      autoCapitalize='none'/>
+      <TextInput style={[styles.input, {
+        backgroundColor: themeColors.background,
+        color: themeColors.text,
+        borderColor: themeColors.icon,
+        borderWidth: 1,
+        borderRadius: 10,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        marginVertical: 10,
+      }]}
+        placeholder='Enter your Email'
+        placeholderTextColor={themeColors.icon}
+        value={email}
+        onChangeText={setEmail}
+        autoCapitalize='none' />
 
       <View style={[styles.passwordContainer,
-      { 
-    backgroundColor: themeColors.background, 
-   
-    borderColor: themeColors.icon, 
-    borderWidth: 1 
-  }]}>
-      <TextInput style={[styles.passwordInput, {color: themeColors.text  }]}
-      placeholder='Enter your password'
-      placeholderTextColor={themeColors.icon}
-      secureTextEntry={hidePassword}
-      value={password}
-      onChangeText={setPassword}/>
-      <TouchableOpacity onPress={() => setHidePassword(s => !s)}>
-        <Ionicons name={hidePassword ? 'eye-off' : 'eye'} size={24} color="#555"/>
-      </TouchableOpacity>
+      {
+        backgroundColor: themeColors.background,
+
+        borderColor: themeColors.icon,
+        borderWidth: 1
+      }]}>
+        <TextInput style={[styles.passwordInput, { color: themeColors.text }]}
+          placeholder='Enter your password'
+          placeholderTextColor={themeColors.icon}
+          secureTextEntry={hidePassword}
+          value={password}
+          onChangeText={setPassword} />
+        <TouchableOpacity onPress={() => setHidePassword(s => !s)}>
+          <Ionicons name={hidePassword ? 'eye-off' : 'eye'} size={24} color="#555" />
+        </TouchableOpacity>
 
       </View>
 
-      <TouchableOpacity style={styles.button}  onPress={handleLogin}  disabled={loading}>
+      <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
         <ThemedText type="defaultSemiBold" style={styles.buttonText}>
-            {loading ? 'Logging in...' : 'Login'}
+          {loading ? 'Logging in...' : 'Login'}
         </ThemedText>
 
       </TouchableOpacity>
 
       <View style={styles.orContainer}>
-        <View style={styles.line}/>
+        <View style={styles.line} />
         <ThemedText type="default" style={styles.orText}>OR</ThemedText>
-        <View style={styles.line}/>
+        <View style={styles.line} />
 
       </View>
 
       <ThemedText style={styles.signupText}>
         Don't have an account ? {' '}
-        <ThemedText type="link" onPress={()=> router.push('/auth/signup')} style={{color:'#BC4B2F'}}>
+        <ThemedText type="link" onPress={() => router.push('/auth/signup')} style={{ color: '#BC4B2F' }}>
           Sign up
-      </ThemedText>
+        </ThemedText>
       </ThemedText>
 
     </ThemedView>
@@ -124,15 +145,15 @@ export default function LoginScreen(){
 
 
 const styles = StyleSheet.create({
-  container:{
-    flex:1,
-    justifyContent:"center",
-    padding:20,
-   
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    padding: 20,
+
   },
-  logoText:{
-    textAlign:"center",
-    padding:20
+  logoText: {
+    textAlign: "center",
+    padding: 20
   },
   input: {
     borderWidth: 1,
@@ -142,50 +163,50 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 16,
   },
-  passwordContainer:{
-    flexDirection:"row",
-    alignItems:"center",
-    backgroundColor:"#fff",
-    borderRadius:10,
-    paddingHorizontal:12,
-    marginVertical:10,
-   
-   
+  passwordContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    marginVertical: 10,
+
+
   },
-  passwordInput:{
-    flex:1,
-    paddingVertical:12,
-    fontSize:16,
+  passwordInput: {
+    flex: 1,
+    paddingVertical: 12,
+    fontSize: 16,
   },
-  button:{
-    backgroundColor:"#C04A2B",
-    padding:15,
-    borderRadius:10,
-    marginTop:20,
-    alignItems:"center"
+  button: {
+    backgroundColor: "#C04A2B",
+    padding: 15,
+    borderRadius: 10,
+    marginTop: 20,
+    alignItems: "center"
   },
-  buttonText:{
-    color:"#fff",
-    fontSize:16,
-    fontWeight:"bold",
+  buttonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
   },
-  orContainer:{
-    flexDirection:"row",
-    alignItems:"center",
-    marginVertical:20,
+  orContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 20,
   },
-  line:{
-    flex:1,
-    height:1,
-    backgroundColor:"#555",
+  line: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#555",
   },
-  orText:{
-    marginHorizontal:10,
-    color:"#aaa"
+  orText: {
+    marginHorizontal: 10,
+    color: "#aaa"
   },
-  signupText:{
-    textAlign:"center",
-    marginTop:10,
+  signupText: {
+    textAlign: "center",
+    marginTop: 10,
   }
 
 })

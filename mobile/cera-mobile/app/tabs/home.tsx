@@ -15,6 +15,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "@/constants/config";
 import axios from "axios";
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 
 export default function HomeScreen() {
   const [user, setUser] = useState<any>(null);
@@ -49,7 +50,7 @@ export default function HomeScreen() {
     fetchUser();
   }, []);
 
-  // Render different states safely
+  // Show loading spinner
   if (loading) {
     return (
       <SafeAreaView style={[styles.centered, { backgroundColor: themeColors.background }]}>
@@ -59,6 +60,7 @@ export default function HomeScreen() {
     );
   }
 
+  // Show error screen
   if (!user) {
     return (
       <SafeAreaView style={[styles.centered, { backgroundColor: themeColors.background }]}>
@@ -70,10 +72,16 @@ export default function HomeScreen() {
     );
   }
 
-  // Resident Dashboard UI
+  // navigation handlers using router.replace() for tab screens (no stack reset)
+  const goToNearbyIncidents = () => router.replace("/tabs/incidents");
+  const goToMyTasks = () => router.replace("/tabs/profile/tasks");
+  const goToMyNotifications = () => router.replace("/tabs/profile/notifications");
+  const goToMyReportIncident = () => router.replace("/tabs/report");
+
+  // Resident Dashboard
   const ResidentDashboard = () => (
     <View style={styles.gridContainer}>
-      <TouchableOpacity style={[styles.card, styles.redCard]}>
+      <TouchableOpacity style={[styles.card, styles.redCard]} onPress={goToMyReportIncident}>
         <Ionicons name="alert" size={40} color="#fff" />
         <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>
           Report Emergency
@@ -104,7 +112,7 @@ export default function HomeScreen() {
           </ThemedText>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.card}>
+        <TouchableOpacity style={styles.card} onPress={goToMyNotifications}>
           <Ionicons name="notifications-outline" size={32} color="#C04A2B" />
           <ThemedText type="defaultSemiBold" style={styles.cardText}>
             Notifications
@@ -114,10 +122,10 @@ export default function HomeScreen() {
     </View>
   );
 
-  // Volunteer Dashboard UI
+  // Volunteer Dashboard
   const VolunteerDashboard = () => (
     <View style={styles.gridContainer}>
-      <TouchableOpacity style={[styles.card, styles.redCard]}>
+      <TouchableOpacity style={[styles.card, styles.redCard]} onPress={goToMyTasks}>
         <Ionicons name="list-outline" size={40} color="#fff" />
         <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>
           View Assigned Tasks
@@ -125,7 +133,7 @@ export default function HomeScreen() {
       </TouchableOpacity>
 
       <View style={styles.row}>
-        <TouchableOpacity style={styles.card}>
+        <TouchableOpacity style={styles.card} onPress={goToNearbyIncidents}>
           <Ionicons name="map-outline" size={32} color="#C04A2B" />
           <ThemedText type="defaultSemiBold" style={styles.cardText}>
             Active Incidents
@@ -148,10 +156,58 @@ export default function HomeScreen() {
           </ThemedText>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.card}>
+        <TouchableOpacity style={styles.card} onPress={goToMyNotifications}>
           <Ionicons name="notifications-outline" size={32} color="#C04A2B" />
           <ThemedText type="defaultSemiBold" style={styles.cardText}>
             Notifications
+          </ThemedText>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+
+  // Coordinator Dashboard
+  const CoordinatorDashboard = () => (
+    <View style={styles.gridContainer}>
+      <TouchableOpacity
+        style={[styles.card, styles.redCard]}
+        onPress={() => router.push("/screens/CoordinatorQueueScreen")}
+      >
+        <Ionicons name="people-circle-outline" size={40} color="#fff" />
+        <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>
+          Manage Incidents
+        </ThemedText>
+      </TouchableOpacity>
+
+      <View style={styles.row}>
+        <TouchableOpacity style={styles.card } onPress={() => router.push("/screens/CoordinatorQueueScreen")}>
+          <Ionicons name="alert-outline" size={32} color="#C04A2B" />
+          <ThemedText type="defaultSemiBold" style={styles.cardText}>
+            Pending Approvals
+          </ThemedText>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.card}>
+          <Ionicons name="checkmark-done-outline" size={32} color="#C04A2B" />
+          <ThemedText type="defaultSemiBold" style={styles.cardText}>
+            Dispatched Tasks
+          </ThemedText>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.row}>
+        <TouchableOpacity style={styles.card} onPress={() => router.push("/tabs/profile/notifications")}>
+          <Ionicons name="notifications-outline" size={32} color="#C04A2B" />
+          <ThemedText type="defaultSemiBold" style={styles.cardText}>
+            Notifications
+          </ThemedText>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.card}>
+          <Ionicons name="settings-outline" size={32} color="#C04A2B" />
+          <ThemedText type="defaultSemiBold" style={styles.cardText}>
+            Coordinator Settings
           </ThemedText>
         </TouchableOpacity>
       </View>
@@ -169,7 +225,14 @@ export default function HomeScreen() {
           Hi {user?.username ? user.username : "there"}!
         </ThemedText>
 
-        {user.role === "resident" ? <ResidentDashboard /> : <VolunteerDashboard />}
+        {user.role === "resident" ? (
+          <ResidentDashboard />
+        ) : user.role === "coordinator" ? (
+          <CoordinatorDashboard />
+        ) : (
+          <VolunteerDashboard />
+        )}
+
       </ScrollView>
     </SafeAreaView>
   );
