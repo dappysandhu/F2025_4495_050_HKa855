@@ -167,12 +167,40 @@ export default function ProfileMyTasksScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scrollContainer: { flexGrow: 1, padding: 16 },
-  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
-  title: { fontSize: 24, fontWeight: "800", textAlign: "center", marginBottom: 16 },
-  subtitle: { fontSize: 15, textAlign: "center", marginTop: 8 },
-  emptyContainer: { alignItems: "center", marginTop: 80 },
-  refreshBtn: { marginTop: 20, padding: 10, borderRadius: 8 },
-  refreshText: { color: "#fff", fontWeight: "700" },
+  container: {
+     flex: 1 
+    },
+  scrollContainer: {
+     flexGrow: 1,
+      padding: 16 
+    
+    },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center" },
+  title: { 
+    fontSize: 24, 
+    fontWeight: "800", 
+    textAlign: "center", 
+    marginBottom: 16 
+  },
+  subtitle: { 
+    fontSize: 15, 
+    textAlign: "center",
+    marginTop: 8 
+  },
+  emptyContainer: { 
+    alignItems: "center", 
+    marginTop: 80 
+  },
+  refreshBtn: { 
+    marginTop: 20,
+    padding: 10, 
+    borderRadius: 8 
+  },
+  refreshText: { 
+    color: "#fff", 
+    fontWeight: "700" 
+  },
 });

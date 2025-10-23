@@ -121,7 +121,7 @@ router.get("/my", verifyToken, async (req, res) => {
   }
 });
 
-// get nearby incidents (Volunteer)
+
 // get nearby incidents (Volunteer)
 router.get("/nearby", verifyToken, async (req, res) => {
   try {
