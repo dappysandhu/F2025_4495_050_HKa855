@@ -41,5 +41,24 @@ router.patch("/me/location" , verifyToken , async(req,res)=>{
     res.json({message:"Location updated", user})
 })
 
+// Save Expo push token
+router.post("/me/push-token", verifyToken, async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ message: "Token required" });
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { $addToSet: { pushTokens: { platform: "expo", token } } },
+      { new: true }
+    );
+
+    res.json({ message: "Push token saved", user });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 
 export default router;
