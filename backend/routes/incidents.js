@@ -122,9 +122,10 @@ router.get("/my", verifyToken, async (req, res) => {
 });
 
 // get nearby incidents (Volunteer)
+// get nearby incidents (Volunteer)
 router.get("/nearby", verifyToken, async (req, res) => {
   try {
-    const { lng, lat, maxKm = 10 } = req.query;
+    const { lng, lat, maxKm = 10, unassigned } = req.query;
     if (!lng || !lat)
       return res.status(400).json({ message: "lng and lat required" });
 
@@ -143,6 +144,14 @@ router.get("/nearby", verifyToken, async (req, res) => {
       },
     };
 
+    // Optional: if user only wants unassigned incidents
+    if (unassigned === "true") {
+      query.$or = [
+        { assignedVolunteers: { $exists: false } },
+        { assignedVolunteers: { $size: 0 } },
+      ];
+    }
+
     const incidents = await Incident.find(query)
       .populate("reporter", "name email role")
       .populate("assignedVolunteers.volunteer", "name email role")
@@ -150,11 +159,12 @@ router.get("/nearby", verifyToken, async (req, res) => {
       .limit(50)
       .lean();
 
-    // Enhance each incident with user-specific assignment info
     const enhanced = incidents.map((incident) => {
-      const myAssignment = incident.assignedVolunteers?.find(
-        (v) => v.volunteer?._id?.toString() === userId.toString()
-      );
+      // safely handle missing volunteer entries
+      const myAssignment = incident.assignedVolunteers?.find((v) => {
+        if (!v?.volunteer?._id || !userId) return false;
+        return v.volunteer._id.toString() === userId.toString();
+      });
 
       return {
         ...incident,

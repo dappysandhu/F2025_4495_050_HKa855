@@ -16,8 +16,7 @@ import * as Location from "expo-location";
 import api from "@/services/api";
 import IncidentCard from "@/components/IncidentCard";
 import Button from "@/components/ui/Button";
-import { useRouter, useNavigation } from "expo-router";
-import { useCallback } from "react";
+import { useNavigation } from "expo-router";
 import BackHeader from "@/components/ui/BackHeader";
 
 
