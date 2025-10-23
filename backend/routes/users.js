@@ -9,7 +9,7 @@ const router =express.Router()
 
 router.get("/me", verifyToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select("-password");
+    const user = await User.findById(req.user._id).select("-password");
     res.json(user);
   } catch (err) {
     console.error(err);
@@ -107,7 +107,7 @@ router.patch("/me/location" , verifyToken , async(req,res)=>{
     }
 
     const user=await User.findByIdAndUpdate(
-        req.user.id,
+        req.user._id,
         {location:{type:"Point", coordinates}},
         {new:true}
     )
@@ -122,7 +122,7 @@ router.post("/me/push-token", verifyToken, async (req, res) => {
     if (!token) return res.status(400).json({ message: "Token required" });
 
     const user = await User.findByIdAndUpdate(
-      req.user.id,
+      req.user._id,
       { $addToSet: { pushTokens: { platform: "expo", token } } },
       { new: true }
     );
@@ -158,7 +158,7 @@ router.patch("/me", verifyToken, async (req, res) => {
     if (skillsArray.length) updateData.skills = skillsArray;
 
     const user = await User.findByIdAndUpdate(
-      req.user.id,
+      req.user._id,
       updateData,
       { new: true, runValidators: true }
     );
