@@ -337,38 +337,39 @@ router.patch("/:id/status", verifyToken, async (req, res) => {
 router.get("/assigned/me", verifyToken, async (req, res) => {
   try {
     const userId = req.user._id?.toString();
+    console.log("Fetching assigned incidents for user:", userId);
 
-    // Match both ObjectId and string (for any legacy data)
-    const incidents = await Incident.find({
-      $or: [
-        { "assignedVolunteers.volunteer": new mongoose.Types.ObjectId(userId) },
-        { "assignedVolunteers.volunteer": userId },
-      ],
-    })
-      .populate("reporter", "name email role")
-      .populate("assignedVolunteers.volunteer", "name email role")
+    const incidents = await Incident.find({})
+      .populate("reporter", "username email role")
+      .populate("assignedVolunteers.volunteer", "username email role")
       .sort({ updatedAt: -1 })
       .lean();
 
-    // Filter out declined tasks
-    const filtered = incidents.filter((incident) => {
-      const me = incident.assignedVolunteers.find((v) => {
-        const vId =
+    // Filter incidents manually — avoids ObjectId vs string mismatch issues
+    const assignedToMe = incidents.filter((incident) => {
+      return incident.assignedVolunteers?.some((v) => {
+        const volunteerId =
           typeof v.volunteer === "object"
             ? v.volunteer?._id?.toString()
             : v.volunteer?.toString();
-        return vId === userId;
+        return volunteerId === userId && v.status?.toLowerCase() !== "declined";
       });
-
-      return me && me.status?.toLowerCase() !== "declined";
     });
 
-    res.json(filtered);
+    console.log(
+      `Found ${assignedToMe.length} assigned incidents for volunteer ${userId}`
+    );
+
+    res.json(assignedToMe);
   } catch (err) {
     console.error("Error fetching assigned tasks:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
+    res
+      .status(500)
+      .json({ message: "Server error", error: err.message });
   }
 });
+
+
 
 
 router.post("/:id/approve", verifyToken, isCoordinator, async (req, res) => {
@@ -428,7 +429,7 @@ router.post("/:id/dispatch", verifyToken, isCoordinator, async (req, res) => {
       .filter(Boolean);
 
     volunteerIds.forEach((id) => {
-      // aways convert to ObjectId to ensure Mongo matches correctly
+      // convert to ObjectId
       const volunteerObjectId = new mongoose.Types.ObjectId(id);
 
       if (!existingIds.includes(id)) {

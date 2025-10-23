@@ -83,21 +83,27 @@ export default function LoginScreen() {
     <ThemedView style={[styles.container, { backgroundColor: themeColors.background }]}>
       <ThemedText type="title" style={styles.logoText}>CERA</ThemedText>
 
-      <TextInput style={[styles.input, {
-        backgroundColor: themeColors.background,
-        color: themeColors.text,
-        borderColor: themeColors.icon,
-        borderWidth: 1,
-        borderRadius: 10,
-        paddingHorizontal: 14,
-        paddingVertical: 12,
-        marginVertical: 10,
-      }]}
-        placeholder='Enter your Email'
+      <TextInput
+        style={[styles.input, {
+          backgroundColor: themeColors.background,
+          color: themeColors.text,
+          borderColor: themeColors.icon,
+          borderWidth: 1,
+          borderRadius: 10,
+          paddingHorizontal: 14,
+          paddingVertical: 12,
+          marginVertical: 10,
+        }]}
+        placeholder="Enter your Email"
         placeholderTextColor={themeColors.icon}
         value={email}
         onChangeText={setEmail}
-        autoCapitalize='none' />
+        autoCapitalize="none"
+        keyboardType="email-address"
+        textContentType="emailAddress"
+        autoComplete="email"
+        returnKeyType="next"
+      />
 
       <View style={[styles.passwordContainer,
       {

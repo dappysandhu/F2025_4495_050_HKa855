@@ -4,22 +4,29 @@ import User from "../models/User.js";
 // Verify JWT token and attach user info
 export const verifyToken = async (req, res, next) => {
   try {
-    const token = req.headers.authorization?.split(" ")[1];
-    if (!token) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({ message: "No token provided" });
     }
 
+    const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallbacksecret");
 
+    // handle either decoded.id or decoded._id
+    const userId = decoded.id || decoded._id;
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid token payload" });
+    }
+
     // Fetch user from DB
-    const user = await User.findById(decoded.id).select("_id username name email role");
+    const user = await User.findById(userId).select("_id username name email role");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Attach plain object instead of raw Mongoose document
+    // Attach consistent user object (with _id)
     req.user = {
-      id: user._id.toString(),
+      _id: user._id.toString(),
       username: user.username || user.name || "Unknown",
       email: user.email,
       role: user.role,
@@ -27,7 +34,7 @@ export const verifyToken = async (req, res, next) => {
 
     next();
   } catch (err) {
-    console.error("Token verification failed:", err);
+    console.error("Token verification failed:", err.message);
     res.status(401).json({ message: "Invalid or expired token" });
   }
 };
