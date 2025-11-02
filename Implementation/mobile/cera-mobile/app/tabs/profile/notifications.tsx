@@ -7,37 +7,43 @@ import {
   FlatList,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Notifications from "expo-notifications";
 import { useColorScheme } from "react-native";
 import { ThemedText } from "@/components/themed-text";
 import { Colors } from "@/constants/theme";
-import { useRouter } from "expo-router";
-import api from "@/services/api";
+import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { API_BASE_URL } from "@/constants/config";
 import BackHeader from "@/components/ui/BackHeader";
 
 export default function NotificationsScreen() {
-  const scheme = useColorScheme() || "dark";
-  const C = Colors[scheme as "dark" | "light"];
-  const router = useRouter();
+  const scheme = useColorScheme() || "light";
+  const C = Colors[scheme as "light" | "dark"];
 
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // 🔄 load backend notifications
+  // ✅ Fetch notifications from backend
   const loadNotifications = async () => {
-    setLoading(true);
     try {
+      setLoading(true);
       const token = await AsyncStorage.getItem("token");
-      const res = await api.get("/notifications/me", {
+      if (!token) {
+        Alert.alert("Error", "Missing authentication token");
+        setLoading(false);
+        return;
+      }
+
+      const res = await axios.get(`${API_BASE_URL}/notifications/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setNotifications(res.data);
-    } catch (err) {
-      console.error("Error fetching notifications:", err);
+    } catch (err: any) {
+      console.error("Error fetching notifications:", err.message);
     } finally {
       setLoading(false);
     }
@@ -46,43 +52,29 @@ export default function NotificationsScreen() {
   useEffect(() => {
     loadNotifications();
 
-    // Foreground receive
-    const sub = Notifications.addNotificationReceivedListener((notif) => {
+    // Handle live notifications when app is open
+    const receiveSub = Notifications.addNotificationReceivedListener((notif) => {
       const content = notif.request.content;
       const newNotif = {
         _id: `live-${Date.now()}`,
         title: content.title,
         body: content.body,
-        data: content.data,
         read: false,
         createdAt: new Date(),
       };
       setNotifications((prev) => [newNotif, ...prev]);
     });
 
-    // Tapped → navigate
-    const respSub = Notifications.addNotificationResponseReceivedListener(
-      async (response) => {
-        const raw = response.notification.request.content.data?.screen;
-        // Only navigate when screen is a string path; otherwise fallback to tasks
-        const screen =
-          typeof raw === "string" && raw.length > 0
-            ? raw
-            : "/tabs/profile/tasks";
-        // router.push(screen);
-      }
-    );
-
     return () => {
-      sub.remove();
-      respSub.remove();
+      receiveSub.remove();
     };
   }, []);
 
+  // ✅ Mark single notification as read
   const markAsRead = async (id: string) => {
     try {
       const token = await AsyncStorage.getItem("token");
-      await api.patch(`/notifications/${id}/read`, {}, {
+      await axios.patch(`${API_BASE_URL}/notifications/${id}/read`, {}, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setNotifications((prev) =>
@@ -93,24 +85,14 @@ export default function NotificationsScreen() {
     }
   };
 
-  const markAllAsRead = async () => {
-    try {
-      const token = await AsyncStorage.getItem("token");
-      await api.patch(`/notifications/mark-all-read`, {}, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    } catch (err) {
-      console.error("Error marking all read:", err);
-    }
-  };
-
+  // Pull-to-refresh handler
   const onRefresh = async () => {
     setRefreshing(true);
     await loadNotifications();
     setRefreshing(false);
   };
 
+  // Render each notification card
   const renderItem = ({ item }: any) => (
     <TouchableOpacity
       style={[
@@ -123,7 +105,7 @@ export default function NotificationsScreen() {
       ]}
       onPress={() => {
         if (!item.read) markAsRead(item._id);
-        router.push("/tabs/profile/tasks");
+        Alert.alert(item.title || "Notification", item.body || ""); // 👈 simple popup
       }}
     >
       <Ionicons
@@ -143,9 +125,7 @@ export default function NotificationsScreen() {
           {new Date(item.createdAt).toLocaleString()}
         </ThemedText>
       </View>
-      {!item.read && (
-        <View style={[styles.unreadDot, { backgroundColor: C.accent }]} />
-      )}
+      {!item.read && <View style={[styles.unreadDot, { backgroundColor: C.accent }]} />}
     </TouchableOpacity>
   );
 
@@ -157,9 +137,6 @@ export default function NotificationsScreen() {
         <ThemedText type="title" style={[styles.headerTitle, { color: C.text }]}>
           Notifications
         </ThemedText>
-        <TouchableOpacity onPress={markAllAsRead}>
-          <Ionicons name="checkmark-done-outline" size={22} color={C.accent} />
-        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -199,18 +176,34 @@ export default function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 20 },
+  container: {
+     flex: 1, 
+  
+    },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
     marginTop: 10,
     marginBottom: 10,
   },
-  headerTitle: { fontSize: 22, fontWeight: "700", flex: 1, textAlign: "center" },
-  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
-  title: { marginTop: 10 },
-  subtitle: { marginTop: 6, textAlign: "center" },
+  headerTitle: {
+     fontSize: 22,
+      fontWeight: "700",
+       marginLeft: 8 
+      },
+  centered: {
+     flex: 1, 
+     justifyContent: "center",
+      alignItems: "center"
+     },
+  title: { 
+    marginTop: 10
+   },
+  subtitle: {
+     marginTop: 6, 
+     textAlign: "center"
+     },
   card: {
     flexDirection: "row",
     alignItems: "center",
@@ -218,8 +211,14 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 10,
   },
-  cardTitle: { fontWeight: "700", fontSize: 15 },
-  cardBody: { fontSize: 13, marginTop: 2 },
+  cardTitle: {
+     fontWeight: "700",
+      fontSize: 15
+     },
+  cardBody: { 
+    fontSize: 13,
+     marginTop: 2
+     },
   unreadDot: {
     width: 10,
     height: 10,

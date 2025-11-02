@@ -12,7 +12,7 @@ import { useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Colors } from "@/constants/theme";
 import api from "@/services/api";
-import BackHeader from "@/components/ui/BackHeader"; // ✅ App Bar
+import BackHeader from "@/components/ui/BackHeader"; 
 
 export default function AllVolunteersScreen() {
   const scheme = useColorScheme() || "light";
@@ -46,10 +46,10 @@ export default function AllVolunteersScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: C.background }]}>
-      {/* ✅ App Bar */}
+     
       <BackHeader title="Back" />
 
-      {/* ✅ Page Title below App Bar */}
+     
       <Text style={[styles.pageTitle, { color: C.text }]}>Approved Volunteers</Text>
 
       <ScrollView

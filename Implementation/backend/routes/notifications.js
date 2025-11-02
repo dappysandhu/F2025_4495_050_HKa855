@@ -4,44 +4,31 @@ import { verifyToken } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-//get all notifications for logged-in user
+// ✅ Fetch notifications for the logged-in user
 router.get("/me", verifyToken, async (req, res) => {
   try {
-    const notes = await Notification.find({ user: req.user.id })
-      .sort({ createdAt: -1 })
-      .limit(50);
+    const userId = req.user._id; // ✅ use _id, not id
+    const notes = await Notification.find({ user: userId })
+      .sort({ createdAt: -1 });
+
     res.json(notes);
   } catch (err) {
+    console.error("Error fetching notifications:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// mark as read
+// ✅ Mark a notification as read
 router.patch("/:id/read", verifyToken, async (req, res) => {
   try {
-    const note = await Notification.findOneAndUpdate(
-      { _id: req.params.id, user: req.user.id },
+    const note = await Notification.findByIdAndUpdate(
+      req.params.id,
       { read: true },
       { new: true }
     );
     res.json(note);
   } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Save new notification (called when task assigned)
-router.post("/", verifyToken, async (req, res) => {
-  try {
-    const { userId, title, body, data } = req.body;
-    const note = await Notification.create({
-      user: userId,
-      title,
-      body,
-      data,
-    });
-    res.status(201).json(note);
-  } catch (err) {
+    console.error("Error marking notification as read:", err);
     res.status(500).json({ error: err.message });
   }
 });

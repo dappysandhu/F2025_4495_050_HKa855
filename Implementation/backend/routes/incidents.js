@@ -7,7 +7,7 @@ import User from "../models/User.js";
 import { verifyToken, isCoordinator } from "../middleware/authMiddleware.js";
 import { sendPushNotification } from "../utils/sendPushNotification.js";
 import mongoose from "mongoose";
-
+import { notifyUser } from "../utils/notifyUser.js";
 
 const router = express.Router();
 
@@ -82,6 +82,18 @@ router.post("/", verifyToken, upload.array("photos", 5), async (req, res) => {
       photoUrl: photos[0] || "",
       status: "pending",
     });
+
+
+    // Notify all coordinators when a resident reports a new incident
+const coordinators = await User.find({ role: "coordinator" });
+for (const coord of coordinators) {
+  await notifyUser(
+    coord._id,
+    "New Incident Reported",
+    `${reporter.username || "A resident"} reported a new ${safeType} incident.`,
+    { incidentId: incident._id }
+  );
+}
 
     res.status(201).json(incident);
   } catch (err) {
@@ -457,20 +469,15 @@ router.post("/:id/dispatch", verifyToken, isCoordinator, async (req, res) => {
       .populate("reporter", "name email role")
       .populate("assignedVolunteers.volunteer", "name email role");
 
-    // Notify coordinators
-    const coordinators = await User.find({ role: "coordinator" });
-    for (const coord of coordinators) {
-      if (coord.pushTokens?.length > 0) {
-        for (const pt of coord.pushTokens) {
-          await sendPushNotification(
-            pt.token,
-            "New Task Assigned",
-            `Incident "${incident.type}" assigned to volunteers.`,
-            { screen: "/tabs/incidents" }
-          );
-        }
-      }
-    }
+    // 🔔 Notify each assigned volunteer
+for (const volunteerId of volunteerIds) {
+  await notifyUser(
+    volunteerId,
+    "New Task Assigned",
+    `You have been assigned to handle incident: ${incident.type}`,
+    { incidentId: incident._id }
+  );
+}
 
     return res.json({
       message: "Volunteers assigned successfully",
