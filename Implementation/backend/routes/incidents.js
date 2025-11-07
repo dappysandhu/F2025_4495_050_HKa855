@@ -10,6 +10,7 @@ import { notifyUser } from "../utils/notifyUser.js";
 
 const router = express.Router();
 
+// Multer setup
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, "public/uploads"),
   filename: (req, file, cb) => {
@@ -17,16 +18,15 @@ const storage = multer.diskStorage({
     cb(null, unique + path.extname(file.originalname));
   },
 });
-
 const upload = multer({ storage });
 
-// log every request once
+// Log every request
 router.use((req, res, next) => {
   console.log("Incidents route hit:", req.method, req.originalUrl);
   next();
 });
 
-//  create an incident (Resident)
+// Create incident (Resident)
 router.post("/", verifyToken, upload.array("photos", 5), async (req, res) => {
   try {
     const userId = req.user.id || req.user._id;
@@ -41,14 +41,7 @@ router.post("/", verifyToken, upload.array("photos", 5), async (req, res) => {
     );
 
     const validTypes = [
-      "fire",
-      "flood",
-      "medical",
-      "rescue",
-      "accident",
-      "crime",
-      "earthquake",
-      "other",
+      "fire", "flood", "medical", "rescue", "accident", "crime", "earthquake", "other",
     ];
     const safeType = validTypes.includes(type?.toLowerCase())
       ? type.toLowerCase()
@@ -71,7 +64,7 @@ router.post("/", verifyToken, upload.array("photos", 5), async (req, res) => {
       status: "pending",
     });
 
-    //  Notify coordinators
+    // Notify coordinators
     const coordinators = await User.find({ role: "coordinator" });
     for (const coord of coordinators) {
       await notifyUser(
@@ -89,7 +82,7 @@ router.post("/", verifyToken, upload.array("photos", 5), async (req, res) => {
   }
 });
 
-//  get all incidents
+// Get all incidents
 router.get("/", verifyToken, async (req, res) => {
   try {
     const { status, type } = req.query;
@@ -104,12 +97,11 @@ router.get("/", verifyToken, async (req, res) => {
 
     res.json(incidents);
   } catch (err) {
-    console.error("Error fetching incidents:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// get my incidents (Resident)
+// Get my incidents (Resident)
 router.get("/my", verifyToken, async (req, res) => {
   try {
     const userId = req.user.id || req.user._id;
@@ -117,21 +109,17 @@ router.get("/my", verifyToken, async (req, res) => {
       .populate("reporter", "name email role")
       .populate("assignedVolunteers", "name email role")
       .sort({ createdAt: -1 });
-
     res.json(incidents);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// get nearby incidents (Volunteer)
+// Get nearby incidents (Volunteer)
 router.get("/nearby", verifyToken, async (req, res) => {
   try {
-    const { lng, lat, maxKm = 10, unassigned } = req.query;
-    if (!lng || !lat)
-      return res.status(400).json({ message: "lng and lat required" });
-
-    const userId = req.user._id;
+    const { lng, lat, maxKm = 10, unassigned, type, severity, status, limit = 50 } = req.query;
+    if (!lng || !lat) return res.status(400).json({ message: "lng and lat required" });
 
     const query = {
       location: {
@@ -149,63 +137,223 @@ router.get("/nearby", verifyToken, async (req, res) => {
       ];
     }
 
+    if (type) {
+      const t = type.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+      if (t.length) query.type = { $in: t };
+    }
+
+    if (severity) {
+      const s = severity.split(",").map(s => s.trim()).filter(Boolean);
+      if (s.length) query.severity = { $in: s };
+    }
+
+    if (status) {
+      const st = status.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+      if (st.length) query.status = { $in: st };
+    }
+
     const incidents = await Incident.find(query)
-      .populate("reporter", "name email role")
-      .populate("assignedVolunteers.volunteer", "name email role")
+      .populate("reporter", "username email role")
+      .populate("assignedVolunteers.volunteer", "username email role")
       .sort({ createdAt: -1 })
-      .limit(50)
+      .limit(parseInt(limit, 10))
       .lean();
 
+    const userId = req.user._id?.toString();
     const enhanced = incidents.map((incident) => {
       const myAssignment = incident.assignedVolunteers?.find((v) => {
-        if (!v?.volunteer?._id || !userId) return false;
-        return v.volunteer._id.toString() === userId.toString();
+        const vid = typeof v.volunteer === "object"
+          ? v.volunteer?._id?.toString()
+          : v.volunteer?.toString();
+        return vid === userId;
       });
-      return {
-        ...incident,
-        isAssignedToUser: !!myAssignment,
-        userAssignmentStatus: myAssignment?.status || null,
-      };
+      return { ...incident, isAssignedToUser: !!myAssignment, userAssignmentStatus: myAssignment?.status || null };
     });
 
     res.json(enhanced);
   } catch (err) {
-    console.error("Nearby fetch error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-//  get assigned incidents (Volunteer)
+// Get assigned incidents
 router.get("/assigned/me", verifyToken, async (req, res) => {
   try {
     const userId = req.user._id?.toString();
-    console.log("Fetching assigned incidents for user:", userId);
-
     const incidents = await Incident.find({})
       .populate("reporter", "username email role")
       .populate("assignedVolunteers.volunteer", "username email role")
       .sort({ updatedAt: -1 })
       .lean();
 
-    const assignedToMe = incidents.filter((incident) => {
-      return incident.assignedVolunteers?.some((v) => {
+    const assignedToMe = incidents.filter((incident) =>
+      incident.assignedVolunteers?.some((v) => {
         const volunteerId =
           typeof v.volunteer === "object"
             ? v.volunteer?._id?.toString()
             : v.volunteer?.toString();
         return volunteerId === userId && v.status?.toLowerCase() !== "declined";
-      });
-    });
+      })
+    );
 
-    console.log(`Found ${assignedToMe.length} assigned incidents for ${userId}`);
     res.json(assignedToMe);
   } catch (err) {
-    console.error("Error fetching assigned tasks:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
-//approve incident (Coordinator)
+// Get one incident by ID
+router.get("/:id", verifyToken, async (req, res) => {
+  try {
+    const incident = await Incident.findById(req.params.id)
+      .populate("reporter", "username email role")
+      .populate("assignedVolunteers.volunteer", "username email role")
+      .populate("logs.actor", "username name email role");
+    if (!incident) return res.status(404).json({ message: "Incident not found" });
+    res.json(incident);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Volunteer accepts task
+router.post("/:id/accept", verifyToken, async (req, res) => {
+  try {
+    const volunteerId = req.user._id;
+    const incident = await Incident.findOneAndUpdate(
+      { _id: req.params.id, "assignedVolunteers.volunteer": volunteerId },
+      {
+        $set: {
+          "assignedVolunteers.$.status": "accepted",
+          "assignedVolunteers.$.respondedAt": new Date(),
+          status: "in_progress",
+        },
+        $push: {
+          logs: {
+            action: "accepted",
+            actor: volunteerId,
+            message: "Volunteer accepted the task.",
+            timestamp: new Date(),
+          },
+        },
+      },
+      { new: true }
+    )
+      .populate("reporter", "username email role")
+      .populate("assignedVolunteers.volunteer", "username email role");
+
+    if (!incident) return res.status(404).json({ message: "Incident not found" });
+
+    const coordinators = await User.find({ role: "coordinator" });
+    for (const coord of coordinators) {
+      await notifyUser(
+        coord._id,
+        "Volunteer Accepted Task",
+        `${req.user.username || "A volunteer"} accepted "${incident.type}" incident.`,
+        { incidentId: incident._id }
+      );
+    }
+
+    res.json({ message: "Task accepted", incident });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Volunteer declines task
+router.post("/:id/decline", verifyToken, async (req, res) => {
+  try {
+    const volunteerId = req.user._id;
+    const incident = await Incident.findOneAndUpdate(
+      { _id: req.params.id, "assignedVolunteers.volunteer": volunteerId },
+      {
+        $set: {
+          "assignedVolunteers.$.status": "declined",
+          "assignedVolunteers.$.respondedAt": new Date(),
+        },
+        $push: {
+          logs: {
+            action: "declined",
+            actor: volunteerId,
+            message: "Volunteer declined the task.",
+            timestamp: new Date(),
+          },
+        },
+      },
+      { new: true }
+    )
+      .populate("reporter", "username email role")
+      .populate("assignedVolunteers.volunteer", "username email role");
+
+    if (!incident) return res.status(404).json({ message: "Incident not found" });
+
+    const allDeclined = incident.assignedVolunteers.every((v) => v.status === "declined");
+    if (allDeclined) {
+      incident.status = "approved";
+      await incident.save();
+    }
+
+    const coordinators = await User.find({ role: "coordinator" });
+    for (const coord of coordinators) {
+      await notifyUser(
+        coord._id,
+        "Volunteer Declined Task",
+        `${req.user.username || "A volunteer"} declined "${incident.type}" incident.`,
+        { incidentId: incident._id }
+      );
+    }
+
+    res.json({ message: "Task declined", incident });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Volunteer completes task
+router.post("/:id/complete", verifyToken, async (req, res) => {
+  try {
+    const volunteerId = req.user._id;
+    const incident = await Incident.findOneAndUpdate(
+      { _id: req.params.id, "assignedVolunteers.volunteer": volunteerId },
+      {
+        $set: {
+          "assignedVolunteers.$.status": "completed",
+          "assignedVolunteers.$.respondedAt": new Date(),
+          status: "completed",
+        },
+        $push: {
+          logs: {
+            action: "completed",
+            actor: volunteerId,
+            message: "Volunteer marked the task as completed.",
+            timestamp: new Date(),
+          },
+        },
+      },
+      { new: true }
+    )
+      .populate("reporter", "username email role")
+      .populate("assignedVolunteers.volunteer", "username email role");
+
+    if (!incident) return res.status(404).json({ message: "Incident not found" });
+
+    const coordinators = await User.find({ role: "coordinator" });
+    for (const coord of coordinators) {
+      await notifyUser(
+        coord._id,
+        "Task Completed",
+        `${req.user.username || "A volunteer"} completed "${incident.type}" incident.`,
+        { incidentId: incident._id }
+      );
+    }
+
+    res.json({ message: "Task completed", incident });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Approve incident (Coordinator)
 router.post("/:id/approve", verifyToken, isCoordinator, async (req, res) => {
   try {
     const incident = await Incident.findById(req.params.id)
@@ -223,19 +371,13 @@ router.post("/:id/approve", verifyToken, isCoordinator, async (req, res) => {
     });
 
     await incident.save();
-
-    const updatedIncident = await Incident.findById(req.params.id)
-      .populate("reporter", "name email role")
-      .populate("assignedVolunteers.volunteer", "name email role");
-
-    res.json({ message: "Incident approved successfully", incident: updatedIncident });
+    res.json({ message: "Incident approved", incident });
   } catch (err) {
-    console.error("Approve error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// dispatch volunteers (Coordinator)
+// Dispatch volunteers (Coordinator)
 router.post("/:id/dispatch", verifyToken, isCoordinator, async (req, res) => {
   try {
     const { volunteerIds } = req.body;
@@ -245,11 +387,9 @@ router.post("/:id/dispatch", verifyToken, isCoordinator, async (req, res) => {
     const incident = await Incident.findById(req.params.id);
     if (!incident) return res.status(404).json({ message: "Incident not found" });
 
-    const existingIds = incident.assignedVolunteers
-      .map((v) => v?.volunteer?.toString?.())
-      .filter(Boolean);
+    const existingIds = incident.assignedVolunteers.map(v => v?.volunteer?.toString?.()).filter(Boolean);
 
-    volunteerIds.forEach((id) => {
+    volunteerIds.forEach(id => {
       const volunteerObjectId = new mongoose.Types.ObjectId(id);
       if (!existingIds.includes(id)) {
         incident.assignedVolunteers.push({
@@ -283,155 +423,10 @@ router.post("/:id/dispatch", verifyToken, isCoordinator, async (req, res) => {
       );
     }
 
-    res.json({ message: "Volunteers assigned successfully", incident: populated });
+    res.json({ message: "Volunteers assigned", incident: populated });
   } catch (err) {
-    console.error("Dispatch error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// volunteer accepts task
-router.post("/:id/accept", verifyToken, async (req, res) => {
-  try {
-    const volunteerId = req.user._id;
-
-    const incident = await Incident.findOneAndUpdate(
-      { _id: req.params.id, "assignedVolunteers.volunteer": volunteerId },
-      {
-        $set: {
-          "assignedVolunteers.$.status": "accepted",
-          "assignedVolunteers.$.respondedAt": new Date(),
-          status: "in_progress",
-        },
-        $push: {
-          logs: {
-            action: "accepted",
-            actor: volunteerId,
-            message: `Volunteer accepted the task.`,
-            timestamp: new Date(),
-          },
-        },
-      },
-      { new: true }
-    )
-      .populate("reporter", "username email role")
-      .populate("assignedVolunteers.volunteer", "username email role");
-
-    if (!incident) return res.status(404).json({ message: "Incident not found" });
-
-    const coordinators = await User.find({ role: "coordinator" });
-    for (const coord of coordinators) {
-      await notifyUser(
-        coord._id,
-        "Volunteer Accepted Task",
-        `${req.user.username || "A volunteer"} accepted the incident "${incident.type}".`,
-        { incidentId: incident._id }
-      );
-    }
-
-    res.json({ message: "Task accepted", incident });
-  } catch (err) {
-    console.error("Accept error:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// volunteer declines task
-router.post("/:id/decline", verifyToken, async (req, res) => {
-  try {
-    const volunteerId = req.user._id;
-
-    const incident = await Incident.findOneAndUpdate(
-      { _id: req.params.id, "assignedVolunteers.volunteer": volunteerId },
-      {
-        $set: {
-          "assignedVolunteers.$.status": "declined",
-          "assignedVolunteers.$.respondedAt": new Date(),
-        },
-        $push: {
-          logs: {
-            action: "declined",
-            actor: volunteerId,
-            message: `Volunteer declined the task.`,
-            timestamp: new Date(),
-          },
-        },
-      },
-      { new: true }
-    )
-      .populate("reporter", "username email role")
-      .populate("assignedVolunteers.volunteer", "username email role");
-
-    if (!incident) return res.status(404).json({ message: "Incident not found" });
-
-    const allDeclined = incident.assignedVolunteers.every((v) => v.status === "declined");
-    if (allDeclined) {
-      incident.status = "approved";
-      await incident.save();
-    }
-
-    const coordinators = await User.find({ role: "coordinator" });
-    for (const coord of coordinators) {
-      await notifyUser(
-        coord._id,
-        "Volunteer Declined Task",
-        `${req.user.username || "A volunteer"} declined the incident "${incident.type}".`,
-        { incidentId: incident._id }
-      );
-    }
-
-    res.json({ message: "Task declined", incident });
-  } catch (err) {
-    console.error("Decline error:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-
-// volunteer marks task as completed
-router.post("/:id/complete", verifyToken, async (req, res) => {
-  try {
-    const volunteerId = req.user._id;
-
-    const incident = await Incident.findOneAndUpdate(
-      { _id: req.params.id, "assignedVolunteers.volunteer": volunteerId },
-      {
-        $set: {
-          "assignedVolunteers.$.status": "completed",
-          "assignedVolunteers.$.respondedAt": new Date(),
-          status: "completed", // update main status too
-        },
-        $push: {
-          logs: {
-            action: "completed",
-            actor: volunteerId,
-            message: `Volunteer marked the task as completed.`,
-            timestamp: new Date(),
-          },
-        },
-      },
-      { new: true }
-    )
-      .populate("reporter", "username email role")
-      .populate("assignedVolunteers.volunteer", "username email role");
-
-    if (!incident) return res.status(404).json({ message: "Incident not found" });
-
-    // 🔔 Notify coordinators that volunteer completed the task
-    const coordinators = await User.find({ role: "coordinator" });
-    for (const coord of coordinators) {
-      await notifyUser(
-        coord._id,
-        "Task Completed",
-        `${req.user.username || "A volunteer"} completed the incident "${incident.type}".`,
-        { incidentId: incident._id }
-      );
-    }
-
-    res.json({ message: "Task marked as completed", incident });
-  } catch (err) {
-    console.error("Complete error:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
 export default router;

@@ -1,1 +1,1 @@
-export { default } from "../screens/VolunteerTasksScreen";
+export { default } from "../screens/IncidentsNearby";
