@@ -1,13 +1,14 @@
 import express from "express";
 import Notification from "../models/Notification.js";
 import { verifyToken } from "../middleware/authMiddleware.js";
-
+import User from "../models/User.js"; 
+import Incident from "../models/Incidents.js";   
 const router = express.Router();
 
-// ✅ Fetch notifications for the logged-in user
+// Fetch notifications for the logged-in user
 router.get("/me", verifyToken, async (req, res) => {
   try {
-    const userId = req.user._id; // ✅ use _id, not id
+    const userId = req.user._id; 
     const notes = await Notification.find({ user: userId })
       .sort({ createdAt: -1 });
 
@@ -18,7 +19,7 @@ router.get("/me", verifyToken, async (req, res) => {
   }
 });
 
-// ✅ Mark a notification as read
+// Mark a notification as read
 router.patch("/:id/read", verifyToken, async (req, res) => {
   try {
     const note = await Notification.findByIdAndUpdate(
@@ -32,5 +33,8 @@ router.patch("/:id/read", verifyToken, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+
+
 
 export default router;

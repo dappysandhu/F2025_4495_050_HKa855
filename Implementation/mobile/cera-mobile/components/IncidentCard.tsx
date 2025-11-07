@@ -7,9 +7,11 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Alert,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
+import * as Linking from "expo-linking";
 import { useColorScheme } from "react-native";
 import { Colors } from "@/constants/theme";
 import Card from "./ui/Card";
@@ -19,11 +21,12 @@ import { useRouter } from "expo-router";
 type Props = {
   incident: any;
   role?: "volunteer" | "coordinator" | "resident";
-  volunteerAssignmentStatus?: "pending" | "accepted" | "declined" | "in_progress" | "completed" | null;
+  volunteerAssignmentStatus?: | "pending" | "accepted" | "declined" | "in_progress" | "completed" | null;
   onAccept?: () => void;
   onDecline?: () => void;
   onApprove?: () => void;
   onDispatch?: () => void;
+  onComplete?: () => void;
   loading?: boolean;
 };
 
@@ -35,6 +38,7 @@ export default function IncidentCard({
   onDecline,
   onApprove,
   onDispatch,
+  onComplete,
   loading = false,
 }: Props) {
   const scheme = useColorScheme() || "dark";
@@ -94,11 +98,9 @@ export default function IncidentCard({
       ? "#4CAF50"
       : C.subtext;
 
-  // Properly handle status and reporter/volunteer names
   const incidentStatus = incident?.status?.toLowerCase() || "pending";
   const reporterName = incident?.reporterName || "Unknown Reporter";
 
-  // For volunteer tasks — check assignment status
   const showVolunteerActions =
     role === "volunteer" && volunteerAssignmentStatus === "pending";
 
@@ -112,6 +114,25 @@ export default function IncidentCard({
   const showCoordinatorDispatch =
     role === "coordinator" && incidentStatus === "approved";
 
+  // Function to open location in maps
+  const openInMaps = () => {
+    const coords = incident?.location?.coordinates;
+    if (!coords || coords.length !== 2) {
+      Alert.alert("Location not available");
+      return;
+    }
+
+    const [lon, lat] = coords;
+    const label = encodeURIComponent(incident.location.name || "Incident Location");
+
+    const url = Platform.select({
+      ios: `maps:0,0?q=${label}@${lat},${lon}`,
+      android: `geo:${lat},${lon}?q=${lat},${lon}(${label})`,
+    });
+
+    Linking.openURL(url || `https://www.google.com/maps?q=${lat},${lon}`);
+  };
+
   return (
     <Card style={[styles.card, { backgroundColor: C.card }]}>
       {/* Header */}
@@ -121,7 +142,8 @@ export default function IncidentCard({
           <Text style={[styles.title, { color: C.text, marginLeft: 8 }]} numberOfLines={2}>
             {incident?.customType
               ? `${incident.customType}`
-              : incident?.type?.charAt(0).toUpperCase() + incident?.type?.slice(1) || "Incident"}
+              : incident?.type?.charAt(0).toUpperCase() + incident?.type?.slice(1) ||
+                "Incident"}
           </Text>
         </View>
         <Text style={[styles.status, { color: C.accent }]}>
@@ -165,13 +187,14 @@ export default function IncidentCard({
       {/* Location */}
       <View style={styles.infoRow}>
         {incident.location?.name && (
-          <View style={styles.infoItem}>
+          <TouchableOpacity style={styles.infoItem} onPress={openInMaps}>
             <Ionicons name="location-outline" size={16} color={C.accent} />
             <Text style={[styles.infoText, { color: C.subtext }]} numberOfLines={1}>
               {incident.location.name}
             </Text>
-          </View>
+          </TouchableOpacity>
         )}
+
         {distance !== null && (
           <View style={styles.infoItem}>
             <Ionicons name="navigate-outline" size={16} color={C.accent} />
@@ -190,6 +213,27 @@ export default function IncidentCard({
         </View>
       </View>
 
+
+      {/* Assigned volunteers(only for coordinator) */}
+      {role === "coordinator" &&
+  incident.assignedVolunteers &&
+  incident.assignedVolunteers.length > 0 && (
+    <View style={[styles.detailRow, { marginTop: 8, flexWrap: "wrap" }]}>
+      <Text style={[styles.detailLabel, { color: C.subtext, marginRight: 6 }]}>
+        Assigned Volunteer:
+      </Text>
+      <Text style={{ color: C.text, fontSize: 13, flexShrink: 1 }}>
+        {incident.assignedVolunteers
+          .map(
+            (v: any) => v.volunteer?.username || v.volunteer?.email || "Unknown"
+          )
+          .join(", ")}
+      </Text>
+    </View>
+  )}
+
+
+  
       {/* Volunteer Action Buttons */}
       {showVolunteerActions && (
         <View style={styles.actionRow}>
@@ -207,6 +251,19 @@ export default function IncidentCard({
           </TouchableOpacity>
         </View>
       )}
+
+{/* Volunteer Complete Button */}
+      {role === "volunteer" &&
+  ["in_progress", "accepted"].includes(volunteerAssignmentStatus || "") && (
+    <View style={{ marginTop: 12 }}>
+      <TouchableOpacity
+        style={[styles.actionBtn, { backgroundColor: "#4CAF50" }]}
+        onPress={onComplete}
+      >
+        <Text style={styles.actionText}>Mark as Completed</Text>
+      </TouchableOpacity>
+    </View>
+  )}
 
       {/* Coordinator Actions */}
       {showCoordinatorApprove && (

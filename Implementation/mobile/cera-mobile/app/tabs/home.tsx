@@ -74,7 +74,7 @@ export default function HomeScreen() {
     );
   }
 
-  // ❌ No user data fallback
+  //  No user data fallback
   if (!user) {
     return (
       <SafeAreaView style={[styles.centered, { backgroundColor: themeColors.background }]}>
@@ -92,7 +92,7 @@ export default function HomeScreen() {
   const goToMyNotifications = () => router.replace("/tabs/profile/notifications");
   const goToMyReportIncident = () => router.replace("/tabs/report");
 
-  // 🎨 Color palette
+  //  Color palette
   const pastel = {
     red: "#c24035ff",
     darkRed: "#c86058ff",
@@ -103,7 +103,7 @@ export default function HomeScreen() {
     orange: "#e3ab67ff",
   };
 
-  // 🔹 Coordinator Dashboard
+  //  Coordinator Dashboard
   const CoordinatorDashboard = () => (
     <View style={styles.gridContainer}>
       <TouchableOpacity style={[styles.fullCard, { backgroundColor: pastel.red }]} onPress={() => router.push("/screens/CoordinatorQueueScreen")}>
@@ -120,10 +120,15 @@ export default function HomeScreen() {
           <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>Pending Approvals</ThemedText>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.coloredCard, { backgroundColor: pastel.orange, marginLeft: 10 }]}>
-          <Ionicons name="checkmark-done-outline" size={32} color="#fff" />
-          <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>Dispatched Tasks</ThemedText>
-        </TouchableOpacity>
+     <TouchableOpacity
+  style={[styles.coloredCard, { backgroundColor: pastel.orange, marginLeft: 10 }]}
+  onPress={() => router.push("/screens/CoordinatorDispatchedScreen")}
+>
+  <Ionicons name="checkmark-done-outline" size={32} color="#fff" />
+  <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>
+    Dispatched Tasks
+  </ThemedText>
+</TouchableOpacity>
       </View>
 
       <View style={styles.row}>
@@ -170,7 +175,7 @@ export default function HomeScreen() {
     </View>
   );
 
-  // 🔹 Resident Dashboard
+  //  Resident Dashboard
   const ResidentDashboard = () => (
     <View style={styles.gridContainer}>
       <TouchableOpacity style={[styles.fullCard, { backgroundColor: pastel.red }]} onPress={goToMyReportIncident}>
@@ -213,7 +218,7 @@ export default function HomeScreen() {
     </View>
   );
 
-  // 🔹 Volunteer Dashboard
+  // Volunteer Dashboard
   const VolunteerDashboard = () => (
     <View style={styles.gridContainer}>
       <TouchableOpacity style={[styles.fullCard, { backgroundColor: pastel.red }]} onPress={() => router.push("/screens/VolunteerAssignedScreen")}>

@@ -27,7 +27,7 @@ export default function NotificationsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // ✅ Fetch notifications from backend
+  //  Fetch notifications from backend
   const loadNotifications = async () => {
     try {
       setLoading(true);
@@ -70,7 +70,7 @@ export default function NotificationsScreen() {
     };
   }, []);
 
-  // ✅ Mark single notification as read
+  //  Mark single notification as read
   const markAsRead = async (id: string) => {
     try {
       const token = await AsyncStorage.getItem("token");
@@ -105,7 +105,7 @@ export default function NotificationsScreen() {
       ]}
       onPress={() => {
         if (!item.read) markAsRead(item._id);
-        Alert.alert(item.title || "Notification", item.body || ""); // 👈 simple popup
+        Alert.alert(item.title || "Notification", item.body || ""); // simple popup
       }}
     >
       <Ionicons

@@ -17,14 +17,12 @@ import IncidentCard from "@/components/IncidentCard";
 import api from "@/services/api";
 import Button from "@/components/ui/Button";
 import BackHeader from "@/components/ui/BackHeader";
-import { createIconSetFromFontello } from "@expo/vector-icons";
 
 export default function CoordinatorQueueScreen() {
   const scheme = useColorScheme() || "dark";
   const C = Colors[scheme as "dark" | "light"];
 
-  const [pending, setPending] = useState<any[]>([]);
-  const [approved, setApproved] = useState<any[]>([]);
+  const [incidents, setIncidents] = useState<any[]>([]);
   const [filtered, setFiltered] = useState<any[]>([]);
   const [statusFilter, setStatusFilter] = useState("All");
   const [volunteers, setVolunteers] = useState<any[]>([]);
@@ -36,16 +34,39 @@ export default function CoordinatorQueueScreen() {
 
   const filters = ["All", "Pending", "Approved", "Assigned", "In Progress", "Resolved"];
 
-  // Fetch incidents
+  // 🔹 Fetch incidents (includes completed)
   const load = async () => {
     setLoading(true);
     try {
-      const [p, a] = await Promise.all([
+      const responses = await Promise.all([
         api.get("/incidents?status=pending"),
         api.get("/incidents?status=approved"),
+        api.get("/incidents?status=assigned"),
+        api.get("/incidents?status=in_progress"),
+        api.get("/incidents?status=resolved"),
+        api.get("/incidents?status=completed"), // ✅ include completed incidents
       ]);
-      setPending(p.data || []);
-      setApproved(a.data || []);
+
+      const [
+        pendingRes,
+        approvedRes,
+        assignedRes,
+        inProgressRes,
+        resolvedRes,
+        completedRes,
+      ] = responses;
+
+      const allIncidents = [
+        ...(pendingRes.data || []),
+        ...(approvedRes.data || []),
+        ...(assignedRes.data || []),
+        ...(inProgressRes.data || []),
+        ...(resolvedRes.data || []),
+        ...(completedRes.data || []), // ✅ merge completed too
+      ];
+
+      setIncidents(allIncidents);
+      setFiltered(allIncidents);
     } catch (err) {
       console.error("Failed to load incidents:", err);
       Alert.alert("Error", "Unable to load incidents.");
@@ -58,34 +79,29 @@ export default function CoordinatorQueueScreen() {
     load();
   }, []);
 
-  // Merge both lists for filter usage
+  // 🔹 Filter incidents by selected status
   useEffect(() => {
-    const combined = [...pending, ...approved];
     if (statusFilter === "All") {
-      setFiltered(combined);
+      setFiltered(incidents);
     } else {
-      setFiltered(
-        combined.filter(
-          (i) => i.status?.toLowerCase() === statusFilter.toLowerCase().replace(" ", "_")
-        )
-      );
+      const normalized = statusFilter.toLowerCase().replace(" ", "_");
+      const filteredList = incidents.filter((i) => {
+        const st = i.status?.toLowerCase();
+        // ✅ include completed incidents in resolved filter
+        if (normalized === "resolved") return st === "resolved" || st === "completed";
+        return st === normalized;
+      });
+      setFiltered(filteredList);
     }
-  }, [pending, approved, statusFilter]);
+  }, [statusFilter, incidents]);
 
-  // Approve an incident
+  // 🔹 Approve an incident
   const approve = async (id: string) => {
-    console.log("Approving incident:", `/incidents/${id}/approve`);
     try {
       setApprovingId(id);
-      const incidentToApprove = pending.find((i) => i._id === id);
-      if (!incidentToApprove) return;
-
       await api.post(`/incidents/${id}/approve`);
-
-      setPending((prev) => prev.filter((i) => i._id !== id));
-      setApproved((prev) => [{ ...incidentToApprove, status: "approved" }, ...prev]);
-
       Alert.alert("Incident approved successfully.");
+      load();
     } catch (err) {
       console.error("Approve failed:", err);
       Alert.alert("Error", "Failed to approve incident.");
@@ -94,19 +110,16 @@ export default function CoordinatorQueueScreen() {
     }
   };
 
-  // Open dispatch modal
+  // 🔹 Open dispatch modal
   const openDispatchModal = async (incident: any) => {
     try {
       setSelectedIncident(incident);
       setSelectedVolunteers([]);
-
       setModalVisible(true);
 
-      // Fetch all volunteers
       const res = await api.get("/users?role=volunteer");
       setVolunteers(res.data || []);
 
-      // Preselect already assigned volunteers for this incident
       const assignedIds =
         incident?.assignedVolunteers?.map((v: any) =>
           typeof v.volunteer === "object" ? v.volunteer._id : v.volunteer
@@ -118,7 +131,7 @@ export default function CoordinatorQueueScreen() {
     }
   };
 
-  // Dispatch selected volunteers
+  // 🔹 Dispatch selected volunteers
   const dispatch = async () => {
     if (!selectedIncident) return;
 
@@ -142,18 +155,18 @@ export default function CoordinatorQueueScreen() {
     }
   };
 
-  // Toggle volunteer selection
   const toggleVolunteer = (id: string) => {
     setSelectedVolunteers((prev) =>
       prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]
     );
   };
 
+  // 🔹 UI Rendering
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: C.background }]}>
       <BackHeader title="Coordinator Dashboard" />
 
-      {/* Filter Section */}
+      {/* Filters */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -184,6 +197,7 @@ export default function CoordinatorQueueScreen() {
         ))}
       </ScrollView>
 
+      {/* Incidents List */}
       <ScrollView
         contentContainerStyle={[styles.scrollContainer, { backgroundColor: C.background }]}
         refreshControl={
@@ -210,11 +224,10 @@ export default function CoordinatorQueueScreen() {
             No incidents found for this filter.
           </Text>
         )}
-
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Volunteer Selection Modal */}
+      {/* Volunteer Modal */}
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContainer, { backgroundColor: C.card }]}>
@@ -274,6 +287,7 @@ export default function CoordinatorQueueScreen() {
   );
 }
 
+// 🔹 Styles
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   scrollContainer: { flexGrow: 1, padding: 16 },
@@ -289,7 +303,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 12,
     marginHorizontal: 5,
-    // marginBottom: 10
   },
   filterText: {
     fontWeight: "600",
