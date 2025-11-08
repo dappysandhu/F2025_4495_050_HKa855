@@ -429,4 +429,66 @@ router.post("/:id/dispatch", verifyToken, isCoordinator, async (req, res) => {
   }
 });
 
+// Contact coordinators (Volunteer → Coordinator)
+router.post("/:id/contact-coordinators", verifyToken, async (req, res) => {
+  try {
+    const { message } = req.body;
+    const incident = await Incident.findById(req.params.id);
+    if (!incident) return res.status(404).json({ message: "Incident not found" });
+
+    const incidentType=incident.customType || incident.type || "Unknown Type";
+    const incidentLocation=incident.location?.name || "Unknown Location";
+
+    const finalMessage=message && message.trim()!==""
+    ? `${message} (Incident: ${incidentType} at ${incidentLocation})`
+    : `A volunteer requested guidance for incident : ${incidentType} at ${incidentLocation}.`;
+
+    // Notify all coordinators
+    const coordinators = await User.find({ role: "coordinator" });
+    for (const coord of coordinators) {
+      await notifyUser(
+        coord._id,
+        "Volunteer Needs Assistance",
+       finalMessage,
+        { incidentId: incident._id }
+      );
+    }
+
+    // Log contact action
+    incident.logs.push({
+      action: "contacted_coordinators",
+      actor: req.user._id,
+      message: message || "Volunteer contacted coordinators.",
+      timestamp: new Date(),
+    });
+    await incident.save();
+
+    res.json({ message: "Coordinators notified successfully" });
+  } catch (err) {
+    console.error("contact-coordinators error:", err);
+    res.status(500).json({ message: "Failed to notify coordinators" });
+  }
+});
+
+
+// Get completed tasks for the logged-in volunteer
+router.get("/volunteer/completed", verifyToken, async (req, res) => {
+  try {
+    const volunteerId = req.user._id;
+
+    // Find incidents assigned to this volunteer with status "completed"
+    const incidents = await Incident.find({
+      "assignedVolunteers.volunteer": volunteerId,
+      "assignedVolunteers.status": "completed",
+    })
+      .populate("reporter", "username email role")
+      .populate("assignedVolunteers.volunteer", "username email role")
+      .sort({ updatedAt: -1 });
+
+    res.json(incidents);
+  } catch (err) {
+    console.error("Error fetching completed incidents:", err);
+    res.status(500).json({ message: "Failed to load completed incidents" });
+  }
+});
 export default router;

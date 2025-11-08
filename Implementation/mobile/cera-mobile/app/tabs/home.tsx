@@ -24,7 +24,7 @@ export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const themeColors = Colors[colorScheme || "light"];
 
-  // ✅ Fetch user and notifications
+  // Fetch user and notifications
   const fetchUserAndNotifications = async () => {
     try {
       const token = await AsyncStorage.getItem("token");
@@ -33,13 +33,13 @@ export default function HomeScreen() {
         return;
       }
 
-      // 1️⃣ Get user info
+      //  Get user info
       const userRes = await axios.get(`${API_BASE_URL}/users/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setUser(userRes.data);
 
-      // 2️⃣ Get unread notifications count
+      //  Get unread notifications count
       const notifRes = await axios.get(`${API_BASE_URL}/notifications/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -57,7 +57,7 @@ export default function HomeScreen() {
     fetchUserAndNotifications();
   }, []);
 
-  // ✅ Refresh unread count when screen is focused
+  // Refresh unread count when screen is focused
   useFocusEffect(
     useCallback(() => {
       fetchUserAndNotifications();
@@ -118,6 +118,7 @@ export default function HomeScreen() {
         >
           <Ionicons name="alert-outline" size={32} color="#fff" />
           <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>Pending Approvals</ThemedText>
+          
         </TouchableOpacity>
 
      <TouchableOpacity
@@ -232,10 +233,15 @@ export default function HomeScreen() {
           <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>Active Incidents</ThemedText>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.coloredCard, { backgroundColor: pastel.orange, marginLeft: 10 }]}>
-          <Ionicons name="checkmark-done-outline" size={32} color="#fff" />
-          <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>Completed Tasks</ThemedText>
-        </TouchableOpacity>
+        <TouchableOpacity
+  style={[styles.coloredCard, { backgroundColor: pastel.orange, marginLeft: 10 }]}
+  onPress={() => router.push("/screens/VolunteerCompletedScreen")}
+>
+  <Ionicons name="checkmark-done-outline" size={32} color="#fff" />
+  <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>
+    Completed Tasks
+  </ThemedText>
+</TouchableOpacity>
       </View>
 
       <View style={styles.row}>

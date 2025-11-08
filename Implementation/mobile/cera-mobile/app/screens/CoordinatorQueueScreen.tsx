@@ -166,38 +166,36 @@ export default function CoordinatorQueueScreen() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: C.background }]}>
       <BackHeader title="Coordinator Dashboard" />
 
-      {/* Filters */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterScroll}
-        contentContainerStyle={{ paddingHorizontal: 10 }}
-      >
-        {filters.map((f) => (
-          <TouchableOpacity
-            key={f}
-            onPress={() => setStatusFilter(f)}
-            style={[
-              styles.filterBtn,
-              {
-                backgroundColor: statusFilter === f ? C.accent : C.cardAlt,
-                borderColor: C.border,
-              },
-            ]}
-          >
-            <Text
+      {/* ✅ Beautiful Filter Bar */}
+      <View style={styles.filterContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterScrollContent}
+        >
+          {filters.map((f) => (
+            <TouchableOpacity
+              key={f}
+              onPress={() => setStatusFilter(f)}
               style={[
-                styles.filterText,
-                { color: statusFilter === f ? "#fff" : C.text },
+                styles.filterBtn,
+                statusFilter === f && [styles.activeFilterBtn, { backgroundColor: C.accent }],
               ]}
             >
-              {f}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+              <Text
+                style={[
+                  styles.filterText,
+                  statusFilter === f && styles.activeFilterText,
+                ]}
+              >
+                {f}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
 
-      {/* Incidents List */}
+      {/* 🔹 Incidents List */}
       <ScrollView
         contentContainerStyle={[styles.scrollContainer, { backgroundColor: C.background }]}
         refreshControl={
@@ -227,7 +225,7 @@ export default function CoordinatorQueueScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Volunteer Modal */}
+      {/* 🔹 Volunteer Dispatch Modal */}
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContainer, { backgroundColor: C.card }]}>
@@ -291,23 +289,42 @@ export default function CoordinatorQueueScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   scrollContainer: { flexGrow: 1, padding: 16 },
-  filterScroll: {
-    marginTop: 10,
-    marginBottom: 10,
-    minHeight: 36,
-    maxHeight: 44,
+
+  // ✅ Filter Bar Styling (fixed)
+  filterContainer: {
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#333",
+  },
+  filterScrollContent: {
+    paddingHorizontal: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
   },
   filterBtn: {
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderWidth: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     borderRadius: 12,
-    marginHorizontal: 5,
+    backgroundColor: "#2c2c2c",
+    borderWidth: 1,
+    borderColor: "#444",
+  },
+  activeFilterBtn: {
+    backgroundColor: "#D45433",
+    borderColor: "#D45433",
   },
   filterText: {
-    fontWeight: "600",
+    color: "#fff",
     fontSize: 14,
+    fontWeight: "500",
   },
+  activeFilterText: {
+    color: "#fff",
+    fontWeight: "700",
+  },
+
   title: {
     fontSize: 22,
     fontWeight: "800",
