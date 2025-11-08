@@ -33,15 +33,18 @@ export default function ReportIncidentScreen() {
   const C = Colors[scheme as "dark" | "light"];
   const router = useRouter();
 
+  type PickedPhoto = { uri: string; aspectRatio: number; mimeType?: string };
+
   const [type, setType] = useState("");
   const [customType, setCustomType] = useState("");
   const [description, setDescription] = useState("");
-  const [photo, setPhoto] = useState<{ uri: string; aspectRatio: number } | null>(null);
+  const [photo, setPhoto] = useState<PickedPhoto | null>(null);
   const [loc, setLoc] = useState<any>(null);
-  const [loading, setLoading] = useState(false); 
+  const [loading, setLoading] = useState(false);
   const [severity, setSeverity] = useState("");
   const [affected, setAffected] = useState("");
-  const [locLoading, setLocLoading] = useState(false); 
+  const [locLoading, setLocLoading] = useState(false);
+
 
   const predefinedTypes = [
     "Fire",
@@ -52,6 +55,13 @@ export default function ReportIncidentScreen() {
     "Crime",
     "Others",
   ];
+  const mapIncidentType = (label: string) => {
+    const key = (label || "").toLowerCase();
+    if (key === "medical emergency") return "medical";
+    if (key === "others") return "other";
+    return key;
+  };
+
 
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -62,18 +72,23 @@ export default function ReportIncidentScreen() {
 
     const res = await ImagePicker.launchCameraAsync({
       quality: 0.9,
-      base64: true,
+      base64: false,
+      allowsEditing: false,
     });
 
     if (!res.canceled && res.assets?.length) {
       const asset = res.assets[0];
       const aspectRatio = asset.width && asset.height ? asset.width / asset.height : 16 / 9;
+
+
       setPhoto({
-        uri: `data:${asset.mimeType};base64,${asset.base64}`,
+        uri: asset.uri,
         aspectRatio,
-      });
+        mimeType: (asset as any).mimeType || "image/jpeg",
+      } as any);
     }
   };
+
 
   const getLocation = async () => {
     try {
@@ -95,7 +110,7 @@ export default function ReportIncidentScreen() {
           longitude: pos.coords.longitude,
         });
         name = [rev[0]?.name, rev[0]?.city].filter(Boolean).join(", ");
-      } catch {}
+      } catch { }
 
       setLoc({
         type: "Point",
@@ -118,7 +133,7 @@ export default function ReportIncidentScreen() {
   };
 
   const submit = async () => {
-    const incidentType = type === "Others" ? "other" : type.toLowerCase();
+    const incidentType = mapIncidentType(type);
     const customTypeValue = type === "Others" ? customType.trim() : "";
 
     if (!incidentType) return Alert.alert("Missing info", "Please select an incident type.");
@@ -131,15 +146,15 @@ export default function ReportIncidentScreen() {
       const formData = new FormData();
       formData.append("type", incidentType);
       formData.append("customType", customTypeValue);
-      formData.append("description", description);
-      formData.append("severity", severity);
-      formData.append("affected", affected.toString());
+      formData.append("description", description.trim());
+      formData.append("severity", severity || "Low");
+      formData.append("affected", (Number(affected) || 0).toString());
       formData.append("location", JSON.stringify(loc));
 
       formData.append("photos", {
         uri: photo.uri,
-        name: "photo.jpg",
-        type: "image/jpeg",
+        name: "incident.jpg",
+        type: (photo as any).mimeType || "image/jpeg",
       } as any);
 
       await api.post("/incidents", formData, {
@@ -168,6 +183,7 @@ export default function ReportIncidentScreen() {
       setLoading(false);
     }
   };
+
 
   const removePhoto = () => setPhoto(null);
 

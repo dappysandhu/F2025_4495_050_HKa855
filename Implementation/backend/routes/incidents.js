@@ -1,82 +1,140 @@
+// routes/incidents.js
 import express from "express";
 import multer from "multer";
-import fs from "fs";
-import path from "path";
+import mongoose from "mongoose";
+import cloudinary from "../config/cloudinary.js";
 import Incident from "../models/Incidents.js";
 import User from "../models/User.js";
 import { verifyToken, isCoordinator } from "../middleware/authMiddleware.js";
 import { sendPushNotification } from "../utils/sendPushNotification.js";
-import mongoose from "mongoose";
+
+// Cloudinary config
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+console.log('[Cloudinary cfg @incidents]', 
+  process.env.CLOUDINARY_CLOUD_NAME, 
+  (process.env.CLOUDINARY_API_KEY || '').slice(0,4) + '****'
+);
 
 
-const router = express.Router();
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "public/uploads"),
-  filename: (req, file, cb) => {
-    const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, unique + path.extname(file.originalname));
+// Multer 
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 6 * 1024 * 1024 }, // 6MB
+  fileFilter: (req, file, cb) => {
+    const ok = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/heic",
+      "image/heif",
+    ].includes(file.mimetype);
+    cb(ok ? null : new Error("Only image files are allowed"), ok);
   },
 });
 
-const upload = multer({ storage });
+const router = express.Router();
 
-// log every request
-router.use((req, res, next) => {
-  console.log("Incidents route hit:", req.method, req.originalUrl);
+// Single request log
+router.use((req, _res, next) => {
+  console.log("[Incidents]", req.method, req.originalUrl);
   next();
 });
 
-// Log every request
-router.use((req, res, next) => {
-  console.log("Incidents route hit:", req.method, req.originalUrl);
-  next();
-});
+// Helpers 
+const folder = process.env.CLOUDINARY_FOLDER || "cera/incidents";
 
-// create an incident (Resident)
+// Upload one buffer → { url, publicId }
+const uploadBufferToCloudinary = (buffer, filename = "incident.jpg") =>
+  new Promise((resolve, reject) => {
+    const folder = process.env.CLOUDINARY_FOLDER || "cera/incidents";
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder,
+        resource_type: "image",
+        filename_override: filename,
+        unique_filename: true,
+        overwrite: false,
+      },
+      (err, result) => {
+        if (err) return reject(err);
+        resolve(result.secure_url);
+      }
+    );
+    stream.end(buffer);
+  });
+
+// delete by public IDs
+const deleteCloudinaryByPublicIds = async (publicIds = []) => {
+  if (!publicIds.length) return;
+  await Promise.all(
+    publicIds.map((id) =>
+      cloudinary.uploader.destroy(id).catch((e) => {
+        console.warn("Cloudinary destroy failed:", id, e?.message || e);
+      })
+    )
+  );
+};
+
+// extract public ID from Cloudinary URL
+const publicIdFromUrl = (secureUrl) => {
+  try {
+    const u = new URL(secureUrl);
+    const parts = u.pathname.split("/");
+    const uploadIdx = parts.findIndex((p) => p === "upload");
+    const afterUpload = parts.slice(uploadIdx + 1);
+    const noVersion =
+      afterUpload.length && /^v\d+/.test(afterUpload[0])
+        ? afterUpload.slice(1)
+        : afterUpload;
+    const last = noVersion.pop() || "";
+    const base = last.replace(/\.[^.]+$/, "");
+    return [...noVersion, base].join("/"); 
+  } catch {
+    return null;
+  }
+};
+
+// CREATE INCIDENT
 router.post("/", verifyToken, upload.array("photos", 5), async (req, res) => {
   try {
     const userId = req.user.id || req.user._id;
 
-    // Fetch reporter details
     const reporter = await User.findById(userId).select("username email role");
     if (!reporter) return res.status(404).json({ message: "Reporter not found" });
 
     const { type, description, severity, affected, location, customType } = req.body;
     const loc = location ? JSON.parse(location) : null;
 
-    // Build photo URLs
-    const photos = (req.files || []).map(
-      (file) => `${req.protocol}://${req.get("host")}/uploads/${file.filename}`
-    );
+    // Validate & normalize type (your enum)
+    const validTypes = ["fire", "flood", "medical", "rescue", "accident", "crime", "earthquake", "other"];
+    const safeType = validTypes.includes((type || "").toLowerCase()) ? type.toLowerCase() : "other";
+    const customTypeValue = safeType === "other" && customType ? String(customType).trim() : "";
 
-    // Validate incident type
-    const validTypes = [
-      "fire",
-      "flood",
-      "medical",
-      "rescue",
-      "accident",
-      "crime",
-      "earthquake",
-      "other",
-    ];
-    const safeType = validTypes.includes(type?.toLowerCase())
-      ? type.toLowerCase()
-      : "other";
+    // Upload each image buffer to Cloudinary (if any)
+    let photos = [];
+    if (req.files?.length) {
+      const uploadedUrls = await Promise.all(
+        req.files.map((file, i) =>
+          uploadBufferToCloudinary(file.buffer, file.originalname || `incident_${Date.now()}_${i}.jpg`)
+        )
+      );
+      photos = uploadedUrls;
+    }
 
-    const customTypeValue =
-      safeType === "other" && customType ? customType.trim() : "";
-
-    // Create new incident with data
+    // Create Incident
     const incident = await Incident.create({
-      reporter: userId,                  
-      reporterName: reporter.username || "Unknown",    
+      reporter: userId,
+      reporterName: reporter.username || "Unknown",
       type: safeType,
       customType: customTypeValue,
-      description,
+      description: description || "",
       severity: severity || "Low",
-      affected: affected || 0,
+      affected: Number(affected) || 0,
       location: loc,
       photos,
       photoUrl: photos[0] || "",
@@ -86,11 +144,12 @@ router.post("/", verifyToken, upload.array("photos", 5), async (req, res) => {
     res.status(201).json(incident);
   } catch (err) {
     console.error("Incident creation error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err?.message || "Server error creating incident" });
   }
 });
 
-// get all incidents 
+
+// GET ALL INCIDENTS
 router.get("/", verifyToken, async (req, res) => {
   try {
     const { status, type } = req.query;
@@ -106,7 +165,7 @@ router.get("/", verifyToken, async (req, res) => {
   }
 });
 
-// get my incidents (Resident)
+// GET MY INCIDENTS (Resident)
 router.get("/my", verifyToken, async (req, res) => {
   try {
     const userId = req.user.id || req.user._id;
@@ -121,8 +180,7 @@ router.get("/my", verifyToken, async (req, res) => {
   }
 });
 
-
-// get nearby incidents (Volunteer)
+// GET NEARBY INCIDENTS (Volunteer)
 router.get("/nearby", verifyToken, async (req, res) => {
   try {
     const { lng, lat, maxKm = 10, unassigned } = req.query;
@@ -131,7 +189,6 @@ router.get("/nearby", verifyToken, async (req, res) => {
 
     const userId = req.user._id;
 
-    // Base query for nearby incidents
     const query = {
       location: {
         $near: {
@@ -144,7 +201,6 @@ router.get("/nearby", verifyToken, async (req, res) => {
       },
     };
 
-    // Optional: if user only wants unassigned incidents
     if (unassigned === "true") {
       query.$or = [
         { assignedVolunteers: { $exists: false } },
@@ -160,7 +216,6 @@ router.get("/nearby", verifyToken, async (req, res) => {
       .lean();
 
     const enhanced = incidents.map((incident) => {
-      // safely handle missing volunteer entries
       const myAssignment = incident.assignedVolunteers?.find((v) => {
         if (!v?.volunteer?._id || !userId) return false;
         return v.volunteer._id.toString() === userId.toString();
@@ -180,18 +235,13 @@ router.get("/nearby", verifyToken, async (req, res) => {
   }
 });
 
-
-// incident handling approval, acceptance, status updates
+// ACCEPT
 router.post("/:id/accept", verifyToken, async (req, res) => {
   try {
     const volunteerId = req.user._id;
 
-    // Find and update this volunteer's assigned entry
     const incident = await Incident.findOneAndUpdate(
-      {
-        _id: req.params.id,
-        "assignedVolunteers.volunteer": volunteerId,
-      },
+      { _id: req.params.id, "assignedVolunteers.volunteer": volunteerId },
       {
         $set: {
           "assignedVolunteers.$.status": "accepted",
@@ -217,7 +267,6 @@ router.post("/:id/accept", verifyToken, async (req, res) => {
       return res.status(404).json({ message: "Incident not found" });
     }
 
-    // send push notification to coordinators
     const coordinators = await User.find({ role: "coordinator" });
     for (const coord of coordinators) {
       if (coord.pushTokens?.length > 0) {
@@ -239,15 +288,13 @@ router.post("/:id/accept", verifyToken, async (req, res) => {
   }
 });
 
+// DECLINE
 router.post("/:id/decline", verifyToken, async (req, res) => {
   try {
     const volunteerId = req.user._id;
 
     const incident = await Incident.findOneAndUpdate(
-      {
-        _id: req.params.id,
-        "assignedVolunteers.volunteer": volunteerId,
-      },
+      { _id: req.params.id, "assignedVolunteers.volunteer": volunteerId },
       {
         $set: {
           "assignedVolunteers.$.status": "declined",
@@ -273,15 +320,12 @@ router.post("/:id/decline", verifyToken, async (req, res) => {
     }
 
     // If all volunteers declined → revert incident status
-    const allDeclined = incident.assignedVolunteers.every(
-      (v) => v.status === "declined"
-    );
+    const allDeclined = incident.assignedVolunteers.every((v) => v.status === "declined");
     if (allDeclined) {
       incident.status = "approved";
       await incident.save();
     }
 
-    //notify coordinator
     const coordinators = await User.find({ role: "coordinator" });
     for (const coord of coordinators) {
       if (coord.pushTokens?.length > 0) {
@@ -303,6 +347,7 @@ router.post("/:id/decline", verifyToken, async (req, res) => {
   }
 });
 
+// STATUS UPDATE
 router.patch("/:id/status", verifyToken, async (req, res) => {
   try {
     const { status } = req.body;
@@ -334,6 +379,7 @@ router.patch("/:id/status", verifyToken, async (req, res) => {
   }
 });
 
+// ASSIGNED TO ME
 router.get("/assigned/me", verifyToken, async (req, res) => {
   try {
     const userId = req.user._id?.toString();
@@ -345,7 +391,6 @@ router.get("/assigned/me", verifyToken, async (req, res) => {
       .sort({ updatedAt: -1 })
       .lean();
 
-    // Filter incidents manually — avoids ObjectId vs string mismatch issues
     const assignedToMe = incidents.filter((incident) => {
       return incident.assignedVolunteers?.some((v) => {
         const volunteerId =
@@ -356,25 +401,17 @@ router.get("/assigned/me", verifyToken, async (req, res) => {
       });
     });
 
-    console.log(
-      `Found ${assignedToMe.length} assigned incidents for volunteer ${userId}`
-    );
-
+    console.log(`Found ${assignedToMe.length} assigned incidents for volunteer ${userId}`);
     res.json(assignedToMe);
   } catch (err) {
     console.error("Error fetching assigned tasks:", err);
-    res
-      .status(500)
-      .json({ message: "Server error", error: err.message });
+    res.status(500).json({ message: "Server error", error: err.message });
   }
 });
 
-
-
-
+// APPROVE (Coordinator)
 router.post("/:id/approve", verifyToken, isCoordinator, async (req, res) => {
   try {
-    // fetch the incident document
     const incident = await Incident.findById(req.params.id)
       .populate("reporter", "name email")
       .populate("assignedVolunteers.volunteer", "name email role");
@@ -383,9 +420,7 @@ router.post("/:id/approve", verifyToken, isCoordinator, async (req, res) => {
       return res.status(404).json({ message: "Incident not found" });
     }
 
-    // update the status and add a log
     incident.status = "approved";
-
     incident.logs.push({
       action: "approved",
       actor: req.user._id,
@@ -393,29 +428,23 @@ router.post("/:id/approve", verifyToken, isCoordinator, async (req, res) => {
       timestamp: new Date(),
     });
 
-    // save the updated document
     await incident.save();
 
-    // refetch populated version (for frontend freshness)
     const updatedIncident = await Incident.findById(req.params.id)
       .populate("reporter", "name email role")
       .populate("assignedVolunteers.volunteer", "name email role");
 
-    res.json({
-      message: "Incident approved successfully",
-      incident: updatedIncident,
-    });
+    res.json({ message: "Incident approved successfully", incident: updatedIncident });
   } catch (err) {
     console.error("Approve error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-
+// DISPATCH (Coordinator)
 router.post("/:id/dispatch", verifyToken, isCoordinator, async (req, res) => {
   try {
     const { volunteerIds } = req.body; // Array of user IDs
-
     if (!Array.isArray(volunteerIds) || volunteerIds.length === 0) {
       return res.status(400).json({ message: "No volunteers provided" });
     }
@@ -423,22 +452,18 @@ router.post("/:id/dispatch", verifyToken, isCoordinator, async (req, res) => {
     const incident = await Incident.findById(req.params.id);
     if (!incident) return res.status(404).json({ message: "Incident not found" });
 
-    // Normalize and ensure no duplicates
     const existingIds = incident.assignedVolunteers
       .map((v) => v?.volunteer?.toString?.())
       .filter(Boolean);
 
     volunteerIds.forEach((id) => {
-      // convert to ObjectId
       const volunteerObjectId = new mongoose.Types.ObjectId(id);
-
       if (!existingIds.includes(id)) {
         incident.assignedVolunteers.push({
           volunteer: volunteerObjectId,
           status: "pending",
           assignedAt: new Date(),
         });
-
         incident.logs.push({
           action: "assigned",
           target: volunteerObjectId,
@@ -448,16 +473,13 @@ router.post("/:id/dispatch", verifyToken, isCoordinator, async (req, res) => {
       }
     });
 
-    // update status and save
     incident.status = "assigned";
     await incident.save();
 
-    // Re-fetch the fully populated document
     const populated = await Incident.findById(incident._id)
       .populate("reporter", "name email role")
       .populate("assignedVolunteers.volunteer", "name email role");
 
-    // Notify coordinators
     const coordinators = await User.find({ role: "coordinator" });
     for (const coord of coordinators) {
       if (coord.pushTokens?.length > 0) {
@@ -472,16 +494,93 @@ router.post("/:id/dispatch", verifyToken, isCoordinator, async (req, res) => {
       }
     }
 
-    return res.json({
-      message: "Volunteers assigned successfully",
-      incident: populated,
-    });
+    return res.json({ message: "Volunteers assigned successfully", incident: populated });
   } catch (err) {
     console.error("Dispatch error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
+// REMOVE A SINGLE PHOTO 
+router.patch("/:id/remove-photo", verifyToken, async (req, res) => {
+  try {
+    const { publicId, url } = req.body || {};
+    if (!publicId && !url) {
+      return res.status(400).json({ message: "publicId or url is required" });
+    }
 
+    const incident = await Incident.findById(req.params.id);
+    if (!incident) return res.status(404).json({ message: "Incident not found" });
+
+    const userId = (req.user.id || req.user._id).toString();
+    const isReporter = incident.reporter?.toString?.() === userId;
+    if (!isReporter && req.user.role !== "coordinator") {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    let pid = publicId;
+    if (!pid && url) pid = publicIdFromUrl(url);
+
+    if (pid) {
+      // remove by publicId
+      const idxPid = (incident.cloudinaryPublicIds || []).indexOf(pid);
+      if (idxPid !== -1) {
+        incident.cloudinaryPublicIds.splice(idxPid, 1);
+        if (incident.photos?.[idxPid]) incident.photos.splice(idxPid, 1);
+      } else if (url) {
+        // fallback remove by URL
+        incident.photos = (incident.photos || []).filter((u) => u !== url);
+      }
+    } else if (url) {
+      incident.photos = (incident.photos || []).filter((u) => u !== url);
+    }
+
+    // update primary
+    if (incident.photoUrl && !incident.photos.includes(incident.photoUrl)) {
+      incident.photoUrl = incident.photos[0] || "";
+    }
+
+    await incident.save();
+
+    if (pid) {
+      await cloudinary.uploader.destroy(pid).catch((e) =>
+        console.warn("Cloudinary destroy failed:", pid, e?.message || e)
+      );
+    }
+
+    res.json({ message: "Photo removed", incident });
+  } catch (err) {
+    console.error("Remove photo error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE INCIDENT (cleanup Cloudinary)
+router.delete("/:id", verifyToken, async (req, res) => {
+  try {
+    const incident = await Incident.findById(req.params.id);
+    if (!incident) return res.status(404).json({ message: "Incident not found" });
+
+    const userId = (req.user.id || req.user._id).toString();
+    const isReporter = incident.reporter?.toString?.() === userId;
+
+    if (!isReporter && req.user.role !== "coordinator") {
+      return res.status(403).json({ message: "Not authorized to delete this incident" });
+    }
+
+    let publicIds = incident.cloudinaryPublicIds || [];
+    if (!publicIds.length && incident.photos?.length) {
+      publicIds = incident.photos.map(publicIdFromUrl).filter(Boolean);
+    }
+
+    await deleteCloudinaryByPublicIds(publicIds);
+    await Incident.deleteOne({ _id: incident._id });
+
+    res.json({ message: "Incident deleted and images cleaned up" });
+  } catch (err) {
+    console.error("Delete incident error:", err);
+    res.status(500).json({ error: err.message || "Server error" });
+  }
+});
 
 export default router;
