@@ -180,6 +180,36 @@ router.get("/nearby", verifyToken, async (req, res) => {
   }
 });
 
+// get single incident details
+router.get("/:id", verifyToken, async (req, res) => {
+  try {
+    const incident = await Incident.findById(req.params.id)
+      .populate("reporter", "username email role")
+      .populate("assignedVolunteers.volunteer", "username email role")
+      .populate("logs.actor", "username email role")
+      .populate("logs.target", "username email role");
+
+    if (!incident) {
+      return res.status(404).json({ message: "Incident not found" });
+    }
+
+    // Volunteers can only see incidents assigned to them
+    if (req.user.role === "volunteer") {
+      const assigned = incident.assignedVolunteers?.some((v) =>
+        v.volunteer?._id?.toString() === req.user._id?.toString()
+      );
+      if (!assigned) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+    }
+
+    res.json(incident);
+  } catch (err) {
+    console.error("Incident detail error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // incident handling approval, acceptance, status updates
 router.post("/:id/accept", verifyToken, async (req, res) => {
@@ -481,7 +511,6 @@ router.post("/:id/dispatch", verifyToken, isCoordinator, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 
 
 export default router;
