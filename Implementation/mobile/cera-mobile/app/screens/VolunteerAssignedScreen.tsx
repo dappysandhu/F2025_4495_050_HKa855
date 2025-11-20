@@ -16,20 +16,20 @@ import IncidentCard from "@/components/IncidentCard";
 import BackHeader from "@/components/ui/BackHeader";
 
 export default function VolunteerAssignedScreen() {
-  // ✅ Ensure fallback to "light" if scheme is null
+  //Ensure fallback to "light" if scheme is null
   const scheme = useColorScheme() ?? "light";
   const C = Colors[scheme];
 
   const [incidents, setIncidents] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // ✅ Get token for authorization
+  // Get token for authorization
   const getAuthConfig = async () => {
     const token = await AsyncStorage.getItem("token");
     return { headers: { Authorization: `Bearer ${token}` } };
   };
 
-  // ✅ Load assigned incidents for volunteer
+  // load assigned incidents for volunteer
   const load = async () => {
     setLoading(true);
     try {

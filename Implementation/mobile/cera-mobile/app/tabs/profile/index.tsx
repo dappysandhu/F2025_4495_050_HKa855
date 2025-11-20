@@ -16,7 +16,7 @@ import { useColorScheme } from "react-native";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { useRouter } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native"; // 👈 added
+import { useFocusEffect } from "@react-navigation/native";
 
 export default function ProfileScreen() {
   const [user, setUser] = useState<any>(null);
@@ -43,7 +43,7 @@ export default function ProfileScreen() {
     }
   };
 
-  // ✅ Re-fetch every time the screen is focused
+  // Re-fetch every time the screen is focused
   useFocusEffect(
     useCallback(() => {
       fetchUser();
