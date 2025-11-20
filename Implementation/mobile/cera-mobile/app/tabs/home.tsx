@@ -72,7 +72,6 @@ export default function HomeScreen() {
   const goToMyNotifications = () => router.replace("/tabs/profile/notifications");
   const goToMyReportIncident = () => router.replace("/tabs/report");
 
-  // 🎨 Your color palette
   const pastel = {
     red: "#c24035ff",
     darkRed: "#c86058ff",
@@ -105,6 +104,21 @@ export default function HomeScreen() {
           <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>Dispatched Tasks</ThemedText>
         </TouchableOpacity>
       </View>
+
+{/* tracking for coordinator */}
+      <View style={styles.row}>
+        <TouchableOpacity
+          style={[styles.coloredCard, { backgroundColor: pastel.gray, marginRight: 10 }]}
+          onPress={() => router.push("/screens/CoordinatorTrackingScreen")}
+        >
+          <Ionicons name="time-outline" size={32} color="#fff" />
+          <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>
+            Track All Incidents
+          </ThemedText>
+        </TouchableOpacity>
+
+      </View>
+
 
       <View style={styles.row}>
         <TouchableOpacity
@@ -178,7 +192,7 @@ export default function HomeScreen() {
   // Volunteer Dashboard
   const VolunteerDashboard = () => (
     <View style={styles.gridContainer}>
-      <TouchableOpacity style={[styles.fullCard, { backgroundColor: pastel.red }]} onPress={() => router.push("/screens/VolunteerAssignedScreen")}>
+      <TouchableOpacity style={[styles.fullCard, { backgroundColor: pastel.red }]} onPress={() => router.push("/tabs/profile/tasks")}>
         <Ionicons name="list-outline" size={40} color="#fff" />
         <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>View Assigned Tasks</ThemedText>
       </TouchableOpacity>
