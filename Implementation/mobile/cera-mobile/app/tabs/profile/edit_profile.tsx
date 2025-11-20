@@ -16,7 +16,7 @@ import { useColorScheme } from "react-native";
 import { Colors } from "@/constants/theme";
 import { ThemedText } from "@/components/themed-text";
 import { useRouter } from "expo-router";
-import BackHeader from "@/components/ui/BackHeader"; // ✅ same as My Tasks header
+import BackHeader from "@/components/ui/BackHeader";
 
 export default function EditProfileScreen() {
   const [username, setUsername] = useState("");
