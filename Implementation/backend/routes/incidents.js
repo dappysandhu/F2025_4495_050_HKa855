@@ -1,4 +1,3 @@
-// routes/incidents.js
 import express from "express";
 import multer from "multer";
 import mongoose from "mongoose";
@@ -9,16 +8,16 @@ import { verifyToken, isCoordinator } from "../middleware/authMiddleware.js";
 import { sendPushNotification } from "../utils/sendPushNotification.js";
 
 // Cloudinary config
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key:    process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+// cloudinary.config({
+//   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+//   api_key:    process.env.CLOUDINARY_API_KEY,
+//   api_secret: process.env.CLOUDINARY_API_SECRET,
+// });
 
-console.log('[Cloudinary cfg @incidents]', 
-  process.env.CLOUDINARY_CLOUD_NAME, 
-  (process.env.CLOUDINARY_API_KEY || '').slice(0,4) + '****'
-);
+// console.log('[Cloudinary cfg @incidents]', 
+//   process.env.CLOUDINARY_CLOUD_NAME, 
+//   (process.env.CLOUDINARY_API_KEY || '').slice(0,4) + '****'
+// );
 
 
 // Multer 
@@ -56,13 +55,18 @@ const uploadBufferToCloudinary = (buffer, filename = "incident.jpg") =>
       {
         folder,
         resource_type: "image",
+        transformation: [{ format: "jpg" }],
         filename_override: filename,
         unique_filename: true,
         overwrite: false,
       },
       (err, result) => {
         if (err) return reject(err);
-        resolve(result.secure_url);
+
+        resolve({
+          url: result.secure_url,
+          publicId: result.public_id,
+        });
       }
     );
     stream.end(buffer);
@@ -110,23 +114,28 @@ router.post("/", verifyToken, upload.array("photos", 5), async (req, res) => {
     const { type, description, severity, affected, location, customType } = req.body;
     const loc = location ? JSON.parse(location) : null;
 
-    // Validate & normalize type (your enum)
     const validTypes = ["fire", "flood", "medical", "rescue", "accident", "crime", "earthquake", "other"];
     const safeType = validTypes.includes((type || "").toLowerCase()) ? type.toLowerCase() : "other";
-    const customTypeValue = safeType === "other" && customType ? String(customType).trim() : "";
+    const customTypeValue = safeType === "other" && customType ? customType.trim() : "";
 
-    // Upload each image buffer to Cloudinary (if any)
+    // Upload images
     let photos = [];
+    let publicIds = [];
+
     if (req.files?.length) {
-      const uploadedUrls = await Promise.all(
+      const uploaded = await Promise.all(
         req.files.map((file, i) =>
-          uploadBufferToCloudinary(file.buffer, file.originalname || `incident_${Date.now()}_${i}.jpg`)
+          uploadBufferToCloudinary(
+            file.buffer,
+            file.originalname || `incident_${Date.now()}_${i}.jpg`
+          )
         )
       );
-      photos = uploadedUrls;
+
+      photos = uploaded.map((u) => u.url);
+      publicIds = uploaded.map((u) => u.publicId);
     }
 
-    // Create Incident
     const incident = await Incident.create({
       reporter: userId,
       reporterName: reporter.username || "Unknown",
@@ -137,6 +146,7 @@ router.post("/", verifyToken, upload.array("photos", 5), async (req, res) => {
       affected: Number(affected) || 0,
       location: loc,
       photos,
+      cloudinaryPublicIds: publicIds,
       photoUrl: photos[0] || "",
       status: "pending",
     });
@@ -147,6 +157,7 @@ router.post("/", verifyToken, upload.array("photos", 5), async (req, res) => {
     res.status(500).json({ error: err?.message || "Server error creating incident" });
   }
 });
+
 
 
 // GET ALL INCIDENTS
