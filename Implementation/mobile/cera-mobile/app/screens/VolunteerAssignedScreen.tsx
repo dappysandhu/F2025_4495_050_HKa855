@@ -23,13 +23,13 @@ export default function VolunteerAssignedScreen() {
   const [incidents, setIncidents] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Get token for authorization
+  //Get token for authorization
   const getAuthConfig = async () => {
     const token = await AsyncStorage.getItem("token");
     return { headers: { Authorization: `Bearer ${token}` } };
   };
 
-  // load assigned incidents for volunteer
+  //Load assigned incidents for volunteer
   const load = async () => {
     setLoading(true);
     try {
