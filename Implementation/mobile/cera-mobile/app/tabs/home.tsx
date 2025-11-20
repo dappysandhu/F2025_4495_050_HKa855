@@ -72,7 +72,6 @@ export default function HomeScreen() {
   const goToMyNotifications = () => router.replace("/tabs/profile/notifications");
   const goToMyReportIncident = () => router.replace("/tabs/report");
 
-  // 🎨 Your color palette
   const pastel = {
     red: "#c24035ff",
     darkRed: "#c86058ff",

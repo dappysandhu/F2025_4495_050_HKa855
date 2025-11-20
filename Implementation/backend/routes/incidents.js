@@ -125,26 +125,31 @@ router.get("/my", verifyToken, async (req, res) => {
 // get nearby incidents (Volunteer)
 router.get("/nearby", verifyToken, async (req, res) => {
   try {
-    const { lng, lat, maxKm = 10, unassigned } = req.query;
-    if (!lng || !lat)
+    const {
+      lng,
+      lat,
+      maxKm = 10,
+      unassigned,
+      type,            
+      severity,       
+      status,        
+      limit = 50,
+    } = req.query;
+
+    if (!lng || !lat) {
       return res.status(400).json({ message: "lng and lat required" });
+    }
 
-    const userId = req.user._id;
-
-    // Base query for nearby incidents
     const query = {
       location: {
         $near: {
-          $geometry: {
-            type: "Point",
-            coordinates: [parseFloat(lng), parseFloat(lat)],
-          },
+          $geometry: { type: "Point", coordinates: [parseFloat(lng), parseFloat(lat)] },
           $maxDistance: parseFloat(maxKm) * 1000,
         },
       },
     };
 
-    // Optional: if user only wants unassigned incidents
+    // Unassigned only
     if (unassigned === "true") {
       query.$or = [
         { assignedVolunteers: { $exists: false } },
@@ -152,25 +157,38 @@ router.get("/nearby", verifyToken, async (req, res) => {
       ];
     }
 
+    // Type filter (schema stores lowercase)
+    if (type) {
+      const t = type.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+      if (t.length) query.type = { $in: t };
+    }
+
+    // Severity filter
+    if (severity) {
+      const s = severity.split(",").map(s => s.trim()).filter(Boolean);
+      if (s.length) query.severity = { $in: s };
+    }
+
+    // Status filter
+    if (status) {
+      const st = status.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+      if (st.length) query.status = { $in: st };
+    }
+
     const incidents = await Incident.find(query)
-      .populate("reporter", "name email role")
-      .populate("assignedVolunteers.volunteer", "name email role")
+      .populate("reporter", "username email role")
+      .populate("assignedVolunteers.volunteer", "username email role")
       .sort({ createdAt: -1 })
-      .limit(50)
+      .limit(parseInt(limit, 10))
       .lean();
 
+    const userId = req.user._id?.toString();
     const enhanced = incidents.map((incident) => {
-      // safely handle missing volunteer entries
       const myAssignment = incident.assignedVolunteers?.find((v) => {
-        if (!v?.volunteer?._id || !userId) return false;
-        return v.volunteer._id.toString() === userId.toString();
+        const vid = typeof v.volunteer === "object" ? v.volunteer?._id?.toString() : v.volunteer?.toString();
+        return vid === userId;
       });
-
-      return {
-        ...incident,
-        isAssignedToUser: !!myAssignment,
-        userAssignmentStatus: myAssignment?.status || null,
-      };
+      return { ...incident, isAssignedToUser: !!myAssignment, userAssignmentStatus: myAssignment?.status || null };
     });
 
     res.json(enhanced);
@@ -179,6 +197,7 @@ router.get("/nearby", verifyToken, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 
 // incident handling approval, acceptance, status updates
@@ -481,6 +500,63 @@ router.post("/:id/dispatch", verifyToken, isCoordinator, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// get one incident by id
+router.get("/:id", verifyToken, async (req, res) => {
+  try {
+    const incident = await Incident.findById(req.params.id)
+      .populate("reporter", "username email role")
+      .populate("assignedVolunteers.volunteer", "username email role")
+      .populate('logs.actor', 'username name email role')
+    if (!incident) return res.status(404).json({ message: "Incident not found" });
+    res.json(incident);
+  } catch (err) {
+    console.error("Get incident error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+// contact coordinators about an incident
+router.post("/:id/contact-coordinators", verifyToken, async (req, res) => {
+  try {
+    const { message } = req.body;
+    const incident = await Incident.findById(req.params.id);
+    if (!incident) return res.status(404).json({ message: "Incident not found" });
+
+    const coordinators = await User.find({ role: "coordinator" });
+    let sent = 0;
+
+    for (const coord of coordinators) {
+      if (coord.pushTokens?.length) {
+        for (const pt of coord.pushTokens) {
+          await sendPushNotification(
+            pt.token,
+            "Volunteer needs assistance",
+            message || `Inquiry about incident ${incident._id}`,
+            { screen: "/tabs/incidents", incidentId: String(incident._id) }
+          );
+          sent++;
+        }
+      }
+    }
+
+    // log the contact action
+    incident.logs.push({
+      action: "in_progress",
+      actor: req.user._id,
+      message: `Volunteer contacted coordinators: ${message || ""}`,
+      timestamp: new Date(),
+    });
+    await incident.save();
+
+    res.json({ ok: true, sent });
+  } catch (err) {
+    console.error("contact-coordinators error:", err);
+    res.status(500).json({ message: "Failed to notify coordinators" });
+  }
+});
+
 
 
 

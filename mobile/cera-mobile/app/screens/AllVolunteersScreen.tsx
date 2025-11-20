@@ -12,7 +12,7 @@ import { useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Colors } from "@/constants/theme";
 import api from "@/services/api";
-import BackHeader from "@/components/ui/BackHeader"; // ✅ App Bar
+import BackHeader from "@/components/ui/BackHeader"; //App Bar
 
 export default function AllVolunteersScreen() {
   const scheme = useColorScheme() || "light";
