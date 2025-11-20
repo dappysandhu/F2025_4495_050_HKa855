@@ -57,6 +57,7 @@ const incidentSchema = new mongoose.Schema(
     description: { type: String, default: "" },
     photoUrl: { type: String, default: "" },
     photos: { type: [String], default: [] },
+    cloudinaryPublicIds: { type: [String], default: [] },
     severity: { type: String, enum: ["Low", "Medium", "High"], default: "Low" },
     affected: { type: Number, default: 0, min: 0 },
 
