@@ -194,24 +194,31 @@ router.get("/my", verifyToken, async (req, res) => {
 // GET NEARBY INCIDENTS (Volunteer)
 router.get("/nearby", verifyToken, async (req, res) => {
   try {
-    const { lng, lat, maxKm = 10, unassigned } = req.query;
-    if (!lng || !lat)
-      return res.status(400).json({ message: "lng and lat required" });
+    const {
+      lng,
+      lat,
+      maxKm = 10,
+      unassigned,
+      type,            
+      severity,       
+      status,        
+      limit = 50,
+    } = req.query;
 
-    const userId = req.user._id;
+    if (!lng || !lat) {
+      return res.status(400).json({ message: "lng and lat required" });
+    }
 
     const query = {
       location: {
         $near: {
-          $geometry: {
-            type: "Point",
-            coordinates: [parseFloat(lng), parseFloat(lat)],
-          },
+          $geometry: { type: "Point", coordinates: [parseFloat(lng), parseFloat(lat)] },
           $maxDistance: parseFloat(maxKm) * 1000,
         },
       },
     };
 
+    // Unassigned only
     if (unassigned === "true") {
       query.$or = [
         { assignedVolunteers: { $exists: false } },
@@ -219,24 +226,38 @@ router.get("/nearby", verifyToken, async (req, res) => {
       ];
     }
 
+    // Type filter (schema stores lowercase)
+    if (type) {
+      const t = type.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+      if (t.length) query.type = { $in: t };
+    }
+
+    // Severity filter
+    if (severity) {
+      const s = severity.split(",").map(s => s.trim()).filter(Boolean);
+      if (s.length) query.severity = { $in: s };
+    }
+
+    // Status filter
+    if (status) {
+      const st = status.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+      if (st.length) query.status = { $in: st };
+    }
+
     const incidents = await Incident.find(query)
-      .populate("reporter", "name email role")
-      .populate("assignedVolunteers.volunteer", "name email role")
+      .populate("reporter", "username email role")
+      .populate("assignedVolunteers.volunteer", "username email role")
       .sort({ createdAt: -1 })
-      .limit(50)
+      .limit(parseInt(limit, 10))
       .lean();
 
+    const userId = req.user._id?.toString();
     const enhanced = incidents.map((incident) => {
       const myAssignment = incident.assignedVolunteers?.find((v) => {
-        if (!v?.volunteer?._id || !userId) return false;
-        return v.volunteer._id.toString() === userId.toString();
+        const vid = typeof v.volunteer === "object" ? v.volunteer?._id?.toString() : v.volunteer?.toString();
+        return vid === userId;
       });
-
-      return {
-        ...incident,
-        isAssignedToUser: !!myAssignment,
-        userAssignmentStatus: myAssignment?.status || null,
-      };
+      return { ...incident, isAssignedToUser: !!myAssignment, userAssignmentStatus: myAssignment?.status || null };
     });
 
     res.json(enhanced);
@@ -246,7 +267,8 @@ router.get("/nearby", verifyToken, async (req, res) => {
   }
 });
 
-// ACCEPT
+
+// incident handling approval, acceptance, status updates
 router.post("/:id/accept", verifyToken, async (req, res) => {
   try {
     const volunteerId = req.user._id;

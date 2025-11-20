@@ -27,7 +27,7 @@ export default function NotificationsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // 🔄 load backend notifications
+  // load backend notifications
   const loadNotifications = async () => {
     setLoading(true);
     try {
