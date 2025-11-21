@@ -1,5 +1,5 @@
-import IncidentDetailsScreen from "../screens/IncidentDetailsScreen";
+import IncidentTracking from "../screens/IncidentTracking";
 
 export default function IncidentDynamicPage() {
-  return <IncidentDetailsScreen />;
+  return <IncidentTracking />;
 }

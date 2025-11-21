@@ -33,15 +33,18 @@ export default function ReportIncidentScreen() {
   const C = Colors[scheme as "dark" | "light"];
   const router = useRouter();
 
+  type PickedPhoto = { uri: string; aspectRatio: number; mimeType?: string };
+
   const [type, setType] = useState("");
   const [customType, setCustomType] = useState("");
   const [description, setDescription] = useState("");
-  const [photo, setPhoto] = useState<{ uri: string; aspectRatio: number } | null>(null);
+  const [photos, setPhotos] = useState<PickedPhoto[]>([]);
   const [loc, setLoc] = useState<any>(null);
-  const [loading, setLoading] = useState(false); 
+  const [loading, setLoading] = useState(false);
   const [severity, setSeverity] = useState("");
   const [affected, setAffected] = useState("");
-  const [locLoading, setLocLoading] = useState(false); 
+  const [locLoading, setLocLoading] = useState(false);
+
 
   const predefinedTypes = [
     "Fire",
@@ -52,6 +55,13 @@ export default function ReportIncidentScreen() {
     "Crime",
     "Others",
   ];
+  const mapIncidentType = (label: string) => {
+    const key = (label || "").toLowerCase();
+    if (key === "medical emergency") return "medical";
+    if (key === "others") return "other";
+    return key;
+  };
+
 
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -62,18 +72,27 @@ export default function ReportIncidentScreen() {
 
     const res = await ImagePicker.launchCameraAsync({
       quality: 0.9,
-      base64: true,
+      base64: false,
+      allowsEditing: false,
     });
 
     if (!res.canceled && res.assets?.length) {
       const asset = res.assets[0];
       const aspectRatio = asset.width && asset.height ? asset.width / asset.height : 16 / 9;
-      setPhoto({
-        uri: `data:${asset.mimeType};base64,${asset.base64}`,
-        aspectRatio,
-      });
+
+
+      setPhotos((prev) => [
+        ...prev,
+        {
+          uri: asset.uri,
+          aspectRatio,
+          mimeType: asset.mimeType || "image/jpeg",
+        },
+      ]);
+
     }
   };
+
 
   const getLocation = async () => {
     try {
@@ -95,7 +114,7 @@ export default function ReportIncidentScreen() {
           longitude: pos.coords.longitude,
         });
         name = [rev[0]?.name, rev[0]?.city].filter(Boolean).join(", ");
-      } catch {}
+      } catch { }
 
       setLoc({
         type: "Point",
@@ -117,59 +136,80 @@ export default function ReportIncidentScreen() {
     }
   };
 
-  const submit = async () => {
-    const incidentType = type === "Others" ? "other" : type.toLowerCase();
-    const customTypeValue = type === "Others" ? customType.trim() : "";
+const submit = async () => {
+  if (loading) return; // prevent duplicate submissions
 
-    if (!incidentType) return Alert.alert("Missing info", "Please select an incident type.");
-    if (!description.trim()) return Alert.alert("Missing info", "Please enter a description.");
-    if (!loc?.coordinates) return Alert.alert("Missing location", "Please set your location.");
-    if (!photo) return Alert.alert("Missing photo", "Please capture a photo before submitting.");
+  const incidentType = mapIncidentType(type);
+  const customTypeValue = type === "Others" ? customType.trim() : "";
 
-    setLoading(true);
-    try {
-      const formData = new FormData();
-      formData.append("type", incidentType);
-      formData.append("customType", customTypeValue);
-      formData.append("description", description);
-      formData.append("severity", severity);
-      formData.append("affected", affected.toString());
-      formData.append("location", JSON.stringify(loc));
+  if (!incidentType) {
+    Alert.alert("Missing info", "Please select an incident type.");
+    return;
+  }
+  if (!description.trim()) {
+    Alert.alert("Missing info", "Please enter a description.");
+    return;
+  }
+  if (!loc?.coordinates) {
+    Alert.alert("Missing location", "Please set your location.");
+    return;
+  }
+  if (photos.length === 0) {
+    Alert.alert("Missing photo", "Please capture a photo before submitting.");
+    return;
+  }
+  if (photos.length > 5) {
+    Alert.alert("Limit reached", "You can upload up to 5 photos.");
+    return;
+  }
 
+  setLoading(true);
+  try {
+    const formData = new FormData();
+    formData.append("type", incidentType);
+    formData.append("customType", customTypeValue);
+    formData.append("description", description.trim());
+    formData.append("severity", severity || "Low");
+    formData.append("affected", (Number(affected) || 0).toString());
+    formData.append("location", JSON.stringify(loc));
+
+    photos.forEach((p, index) => {
       formData.append("photos", {
-        uri: photo.uri,
-        name: "photo.jpg",
-        type: "image/jpeg",
+        uri: p.uri,
+        name: `incident_${index}.jpg`,
+        type: p.mimeType || "image/jpeg",
       } as any);
+    });
 
-      await api.post("/incidents", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+    await api.post("/incidents", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
 
-      Toast.show({
-        type: "success",
-        text1: "Incident Reported",
-        text2: "Your report was submitted successfully!",
-        position: "bottom",
-      });
+    Toast.show({
+      type: "success",
+      text1: "Incident Reported",
+      text2: "Your report was submitted successfully!",
+      position: "bottom",
+    });
 
-      setType("");
-      setCustomType("");
-      setDescription("");
-      setPhoto(null);
-      setLoc(null);
-      setSeverity("");
-      setAffected("");
-      setTimeout(() => router.replace("/tabs/home"), 1200);
-    } catch (e: any) {
-      console.error("Report submit error:", e);
-      Alert.alert("Error", e?.response?.data?.message ?? "Could not submit report.");
-    } finally {
-      setLoading(false);
-    }
-  };
+    setType("");
+    setCustomType("");
+    setDescription("");
+    setPhotos([]);
+    setLoc(null);
+    setSeverity("");
+    setAffected("");
+    setTimeout(() => router.replace("/tabs/home"), 1200);
+  } catch (e: any) {
+    console.error("Report submit error:", e);
+    Alert.alert("Error", e?.response?.data?.message ?? "Could not submit report.");
+  } finally {
+    setLoading(false);
+  }
+};
 
-  const removePhoto = () => setPhoto(null);
+
+  const removePhoto = (index: number) => setPhotos((prev) => prev.filter((_, i) => i !== index));
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: C.background }]}>
@@ -297,7 +337,10 @@ export default function ReportIncidentScreen() {
 
             {/* Buttons */}
             <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
-              <Button title={photo ? "Retake Photo" : "Capture Photo"} onPress={takePhoto} />
+              <Button
+                title={photos.length === 0 ? "Capture Photo" : "Add More Photos"}
+                onPress={takePhoto}
+              />
               <Button
                 title={locLoading ? "Setting..." : loc ? "Location Set" : "Use My Location"}
                 variant={loc ? "primary" : "outline"}
@@ -307,24 +350,28 @@ export default function ReportIncidentScreen() {
             </View>
 
             {/* Photo preview */}
-            {photo && (
-              <View style={{ marginTop: 16 }}>
-                <View style={styles.photoContainer}>
-                  <Image
-                    source={{ uri: photo.uri }}
-                    style={[
-                      styles.fullPhoto,
-                      { aspectRatio: photo.aspectRatio || 16 / 9 },
-                    ]}
-                    resizeMode="contain"
-                  />
-                  <TouchableOpacity style={styles.closeIcon} onPress={removePhoto}>
-                    <Ionicons name="close" size={20} color="#fff" />
-                  </TouchableOpacity>
-                </View>
+            {photos.length > 0 && (
+              <View style={{ marginTop: 16, gap: 16 }}>
+                {photos.map((p, idx) => (
+                  <View key={idx} style={styles.photoContainer}>
+                    <Image
+                      source={{ uri: p.uri }}
+                      style={[styles.fullPhoto, { aspectRatio: p.aspectRatio }]}
+                      resizeMode="contain"
+                    />
+
+                    <TouchableOpacity
+                      style={styles.closeIcon}
+                      onPress={() =>
+                        setPhotos((prev) => prev.filter((_, i) => i !== idx))
+                      }
+                    >
+                      <Ionicons name="close" size={20} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
               </View>
             )}
-
             {/* Location Info */}
             {loc && (
               <View style={{ marginTop: 10 }}>
