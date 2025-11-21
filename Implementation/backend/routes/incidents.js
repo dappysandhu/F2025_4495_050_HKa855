@@ -267,7 +267,6 @@ router.get("/nearby", verifyToken, async (req, res) => {
   }
 });
 
-
 // incident handling approval, acceptance, status updates
 router.post("/:id/accept", verifyToken, async (req, res) => {
   try {
