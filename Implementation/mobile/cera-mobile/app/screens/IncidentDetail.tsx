@@ -60,7 +60,7 @@ export default function IncidentDetail() {
     try {
       setContacting(true);
       await api.post(`/incidents/${id}/contact-coordinators`, {
-        message: "Volunteer requesting guidance on this incident.",
+        // message: "Volunteer requesting guidance on this incident.",
       });
       Alert.alert("Sent", "Coordinator(s) have been notified.");
     } catch (e: any) {
@@ -138,22 +138,49 @@ export default function IncidentDetail() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  safe: {
+     flex: 1
+     },
+  center: {
+     flex: 1,
+     justifyContent: "center", 
+     alignItems: "center" 
+    },
 
-  heroWrap: { width: "100%", height: 68, position: "relative" },
-  heroBar: { width: "100%", height: "100%" },
+  heroWrap: {
+     width: "100%", 
+     height: 68, 
+     position: "relative"
+     },
+  heroBar: {
+     width: "100%", 
+     height: "100%" 
+    },
   heroContent: {
     position: "absolute",
     left: 16,
     right: 16,
     bottom: 10,
   },
-  heroTitle: { color: "#fff", fontSize: 18, fontWeight: "800" },
-  heroLocRow: { marginTop: 2, flexDirection: "row", alignItems: "center", gap: 6 },
-  heroLoc: { color: "#fff", fontSize: 12 },
+  heroTitle: {
+     color: "#fff", 
+     fontSize: 18, 
+     fontWeight: "800"
+     },
+  heroLocRow: { 
+    marginTop: 2, 
+    flexDirection: "row", 
+    alignItems: "center", 
+    gap: 6 
+  },
+  heroLoc: { 
+    color: "#fff", 
+    fontSize: 12
+   },
 
-  content: { padding: 16 },
+  content: { 
+    padding: 16
+   },
 
   sticky: {
     position: "absolute",

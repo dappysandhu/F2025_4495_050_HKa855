@@ -2,6 +2,7 @@ import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import { notifyUser } from "../utils/notifyUser.js";  
 
 const router = express.Router();
 
@@ -27,10 +28,24 @@ router.post("/register", async (req, res) => {
       role,
       skills,
       location,
-      certified: role === "volunteer" ? false : true, // volunteers need approval
+      certified: role === "volunteer" ? false : true, 
     });
 
     await user.save();
+
+    // ✅ Notify all coordinators when a volunteer registers
+    if (user.role === "volunteer" && !user.certified) {
+      const coordinators = await User.find({ role: "coordinator" });
+      for (const coord of coordinators) {
+        await notifyUser(
+          coord._id,
+          "New Volunteer Request",
+          `${user.username || user.email} has requested approval to join as a volunteer.`,
+          { userId: user._id }
+        );
+      }
+      console.log(`Coordinators notified about volunteer ${user.username}`);
+    }
 
     // Sign JWT
     const token = jwt.sign(
@@ -46,7 +61,7 @@ router.post("/register", async (req, res) => {
   }
 });
 
-/* login */
+/* Login */
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;

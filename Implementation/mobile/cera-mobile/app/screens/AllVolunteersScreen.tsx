@@ -12,7 +12,7 @@ import { useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Colors } from "@/constants/theme";
 import api from "@/services/api";
-import BackHeader from "@/components/ui/BackHeader"; 
+import BackHeader from "@/components/ui/BackHeader";
 
 export default function AllVolunteersScreen() {
   const scheme = useColorScheme() || "light";
@@ -48,12 +48,18 @@ export default function AllVolunteersScreen() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: C.background }]}>
       <BackHeader title="Back" />
 
-      <Text style={[styles.pageTitle, { color: C.text }]}>Approved Volunteers</Text>
+      <Text style={[styles.pageTitle, { color: C.text }]}>
+        Approved Volunteers
+      </Text>
 
       <ScrollView
         contentContainerStyle={[styles.container, { backgroundColor: C.background }]}
         refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={load} tintColor={C.accent} />
+          <RefreshControl
+            refreshing={loading}
+            onRefresh={load}
+            tintColor={C.accent}
+          />
         }
         showsVerticalScrollIndicator={false}
       >
@@ -73,7 +79,9 @@ export default function AllVolunteersScreen() {
                 <View style={styles.skillContainer}>
                   {v.skills.map((skill: string, idx: number) => (
                     <View key={idx} style={styles.skillTag}>
-                      <Text style={[styles.skillText, { color: C.accent }]}>{skill}</Text>
+                      <Text style={[styles.skillText, { color: C.accent }]}>
+                        {skill}
+                      </Text>
                     </View>
                   ))}
                 </View>
@@ -95,8 +103,6 @@ export default function AllVolunteersScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   container: { flexGrow: 1, padding: 16 },
-
- 
   pageTitle: {
     fontSize: 24,
     fontWeight: "800",
@@ -104,7 +110,6 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 10,
   },
-
   empty: {
     textAlign: "center",
     fontSize: 15,

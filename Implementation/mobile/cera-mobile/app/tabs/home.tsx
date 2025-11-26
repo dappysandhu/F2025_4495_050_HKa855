@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -15,37 +15,56 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "@/constants/config";
 import axios from "axios";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 
 export default function HomeScreen() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
   const colorScheme = useColorScheme();
   const themeColors = Colors[colorScheme || "light"];
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const token = await AsyncStorage.getItem("token");
-        if (!token) {
-          setLoading(false);
-          return;
-        }
-
-        const response = await axios.get(`${API_BASE_URL}/users/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setUser(response.data);
-      } catch (error: any) {
-        console.error("Failed to load user:", error.message);
-        Alert.alert("Error", "Failed to load user data.");
-      } finally {
+  // Fetch user and notifications
+  const fetchUserAndNotifications = async () => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
         setLoading(false);
+        return;
       }
-    };
-    fetchUser();
+
+      //  Get user info
+      const userRes = await axios.get(`${API_BASE_URL}/users/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUser(userRes.data);
+
+      //  Get unread notifications count
+      const notifRes = await axios.get(`${API_BASE_URL}/notifications/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const unread = notifRes.data.filter((n: any) => !n.read).length;
+      setUnreadCount(unread);
+    } catch (error: any) {
+      console.error("Failed to load dashboard:", error.message);
+      Alert.alert("Error", "Failed to load dashboard data.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUserAndNotifications();
   }, []);
 
+  // Refresh unread count when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      fetchUserAndNotifications();
+    }, [])
+  );
+
+  // ⏳ Loading state
   if (loading) {
     return (
       <SafeAreaView style={[styles.centered, { backgroundColor: themeColors.background }]}>
@@ -55,6 +74,7 @@ export default function HomeScreen() {
     );
   }
 
+  //  No user data fallback
   if (!user) {
     return (
       <SafeAreaView style={[styles.centered, { backgroundColor: themeColors.background }]}>
@@ -82,7 +102,7 @@ export default function HomeScreen() {
     orange: "#e3ab67ff",
   };
 
-  // Coordinator Dashboard
+  //  Coordinator Dashboard
   const CoordinatorDashboard = () => (
     <View style={styles.gridContainer}>
       <TouchableOpacity style={[styles.fullCard, { backgroundColor: pastel.red }]} onPress={() => router.push("/screens/CoordinatorQueueScreen")}>
@@ -97,12 +117,18 @@ export default function HomeScreen() {
         >
           <Ionicons name="alert-outline" size={32} color="#fff" />
           <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>Pending Approvals</ThemedText>
+          
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.coloredCard, { backgroundColor: pastel.orange, marginLeft: 10 }]}>
-          <Ionicons name="checkmark-done-outline" size={32} color="#fff" />
-          <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>Dispatched Tasks</ThemedText>
-        </TouchableOpacity>
+     <TouchableOpacity
+  style={[styles.coloredCard, { backgroundColor: pastel.orange, marginLeft: 10 }]}
+  onPress={() => router.push("/screens/CoordinatorDispatchedScreen")}
+>
+  <Ionicons name="checkmark-done-outline" size={32} color="#fff" />
+  <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>
+    Dispatched Tasks
+  </ThemedText>
+</TouchableOpacity>
       </View>
 
 {/* tracking for coordinator */}
@@ -141,10 +167,19 @@ export default function HomeScreen() {
       <View style={styles.row}>
         <TouchableOpacity
           style={[styles.coloredCard, { backgroundColor: pastel.green, marginRight: 10 }]}
-          onPress={() => router.push("/tabs/profile/notifications")}
+          onPress={goToMyNotifications}
         >
-          <Ionicons name="notifications-outline" size={32} color="#fff" />
-          <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>Notifications</ThemedText>
+          <View style={{ position: "relative" }}>
+            <Ionicons name="notifications-outline" size={32} color="#fff" />
+            {unreadCount > 0 && (
+              <View style={styles.badgeContainer}>
+                <ThemedText style={styles.badgeText}>{unreadCount}</ThemedText>
+              </View>
+            )}
+          </View>
+          <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>
+            Notifications
+          </ThemedText>
         </TouchableOpacity>
 
         <TouchableOpacity style={[styles.coloredCard, { backgroundColor: pastel.gray, marginLeft: 10 }]}>
@@ -155,7 +190,7 @@ export default function HomeScreen() {
     </View>
   );
 
-  // Resident Dashboard
+  //  Resident Dashboard
   const ResidentDashboard = () => (
     <View style={styles.gridContainer}>
       <TouchableOpacity style={[styles.fullCard, { backgroundColor: pastel.red }]} onPress={goToMyReportIncident}>
@@ -176,14 +211,23 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.row}>
-        <TouchableOpacity style={[styles.coloredCard, { backgroundColor: pastel.green, marginRight: 10 }]}>
-          <Ionicons name="call-outline" size={32} color="#fff" />
-          <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>Emergency Contacts</ThemedText>
+        <TouchableOpacity style={[styles.coloredCard, { backgroundColor: pastel.green, marginRight: 10 }]} onPress={goToMyNotifications}>
+          <View style={{ position: "relative" }}>
+            <Ionicons name="notifications-outline" size={32} color="#fff" />
+            {unreadCount > 0 && (
+              <View style={styles.badgeContainer}>
+                <ThemedText style={styles.badgeText}>{unreadCount}</ThemedText>
+              </View>
+            )}
+          </View>
+          <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>
+            Notifications
+          </ThemedText>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.coloredCard, { backgroundColor: pastel.gray, marginLeft: 10 }]} onPress={goToMyNotifications}>
-          <Ionicons name="notifications-outline" size={32} color="#fff" />
-          <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>Notifications</ThemedText>
+        <TouchableOpacity style={[styles.coloredCard, { backgroundColor: pastel.gray, marginLeft: 10 }]}>
+          <Ionicons name="call-outline" size={32} color="#fff" />
+          <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>Emergency Contacts</ThemedText>
         </TouchableOpacity>
       </View>
     </View>
@@ -203,10 +247,15 @@ export default function HomeScreen() {
           <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>Active Incidents</ThemedText>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.coloredCard, { backgroundColor: pastel.orange, marginLeft: 10 }]}>
-          <Ionicons name="checkmark-done-outline" size={32} color="#fff" />
-          <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>Completed Tasks</ThemedText>
-        </TouchableOpacity>
+        <TouchableOpacity
+  style={[styles.coloredCard, { backgroundColor: pastel.orange, marginLeft: 10 }]}
+  onPress={() => router.push("/screens/VolunteerCompletedScreen")}
+>
+  <Ionicons name="checkmark-done-outline" size={32} color="#fff" />
+  <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>
+    Completed Tasks
+  </ThemedText>
+</TouchableOpacity>
       </View>
 
       <View style={styles.row}>
@@ -216,8 +265,17 @@ export default function HomeScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity style={[styles.coloredCard, { backgroundColor: pastel.green, marginLeft: 10 }]} onPress={goToMyNotifications}>
-          <Ionicons name="notifications-outline" size={32} color="#fff" />
-          <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>Notifications</ThemedText>
+          <View style={{ position: "relative" }}>
+            <Ionicons name="notifications-outline" size={32} color="#fff" />
+            {unreadCount > 0 && (
+              <View style={styles.badgeContainer}>
+                <ThemedText style={styles.badgeText}>{unreadCount}</ThemedText>
+              </View>
+            )}
+          </View>
+          <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>
+            Notifications
+          </ThemedText>
         </TouchableOpacity>
       </View>
     </View>
@@ -305,5 +363,23 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 8,
     fontWeight: "600",
+  },
+  badgeContainer: {
+    position: "absolute",
+    top: -5,
+    right: -10,
+   
+    
+    minWidth: 18,
+    height: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+    
+  },
+  badgeText: {
+    color: "#f7f7f7ff",
+    fontSize: 11,
+    fontWeight: "700",
   },
 });

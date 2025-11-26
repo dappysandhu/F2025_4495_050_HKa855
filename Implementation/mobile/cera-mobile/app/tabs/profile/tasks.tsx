@@ -96,6 +96,22 @@ export default function ProfileMyTasksScreen() {
     }
   };
 
+  /** Volunteer marks task as completed */
+  const handleComplete = async (id: string) => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) return Alert.alert("Error", "No authentication token.");
+      api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+
+      await api.post(`/incidents/${id}/complete`);
+      Alert.alert("Completed", "You have marked this task as completed.");
+      fetchTasks();
+    } catch (err) {
+      console.error(err);
+      Alert.alert("Error", "Could not mark the task as completed.");
+    }
+  };
+
   /** UI conditions */
   const showEmpty = !loading && tasks.length === 0;
 
@@ -177,12 +193,40 @@ export default function ProfileMyTasksScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scrollContainer: { flexGrow: 1, padding: 16 },
-  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
-  title: { fontSize: 24, fontWeight: "800", textAlign: "center", marginBottom: 16 },
-  subtitle: { fontSize: 15, textAlign: "center", marginTop: 8 },
-  emptyContainer: { alignItems: "center", marginTop: 80 },
-  refreshBtn: { marginTop: 20, padding: 10, borderRadius: 8 },
-  refreshText: { color: "#fff", fontWeight: "700" },
+  container: {
+    flex: 1,
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    padding: 16,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  subtitle: {
+    fontSize: 15,
+    textAlign: "center",
+    marginTop: 8,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    marginTop: 80,
+  },
+  refreshBtn: {
+    marginTop: 20,
+    padding: 10,
+    borderRadius: 8,
+  },
+  refreshText: {
+    color: "#fff",
+    fontWeight: "700",
+  },
 });
