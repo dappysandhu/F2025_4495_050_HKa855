@@ -5,7 +5,6 @@ import cloudinary from "../config/cloudinary.js";
 import Incident from "../models/Incidents.js";
 import User from "../models/User.js";
 import { verifyToken, isCoordinator } from "../middleware/authMiddleware.js";
-import mongoose from "mongoose";
 import { notifyUser } from "../utils/notifyUser.js";
 
 const router = express.Router();
