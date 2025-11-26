@@ -5,7 +5,8 @@ const logSchema = new mongoose.Schema(
   {
     action: {
       type: String,
-      enum: ["assigned", "accepted", "declined", "approved", "resolved", "in_progress"],
+      enum: ["assigned", "accepted", "declined", "approved", "resolved", "in_progress","completed",              // ✅ added
+        "contacted_coordinators",],
       required: true,
     },
     actor: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
@@ -69,7 +70,7 @@ const incidentSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["pending", "approved", "assigned", "in_progress", "resolved"],
+      enum: ["pending", "approved", "assigned", "in_progress", "completed"],
       default: "pending",
       lowercase: true,
     },

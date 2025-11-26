@@ -39,6 +39,7 @@ router.post("/:id/approve", verifyToken, isCoordinator, async (req, res) => {
       req.params.id,
       { certified: true, approved: true },
       { new: true }
+      
     );
 
     if (!user) {

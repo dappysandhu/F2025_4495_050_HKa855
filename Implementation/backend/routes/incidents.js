@@ -5,7 +5,25 @@ import cloudinary from "../config/cloudinary.js";
 import Incident from "../models/Incidents.js";
 import User from "../models/User.js";
 import { verifyToken, isCoordinator } from "../middleware/authMiddleware.js";
-import { sendPushNotification } from "../utils/sendPushNotification.js";
+import mongoose from "mongoose";
+import { notifyUser } from "../utils/notifyUser.js";
+
+const router = express.Router();
+
+// Multer setup
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, "public/uploads"),
+  filename: (req, file, cb) => {
+    const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, unique + path.extname(file.originalname));
+  },
+});
+
+// Log every request
+router.use((req, res, next) => {
+  console.log("Incidents route hit:", req.method, req.originalUrl);
+  next();
+});
 
 // Cloudinary config
 // cloudinary.config({
@@ -36,7 +54,6 @@ const upload = multer({
   },
 });
 
-const router = express.Router();
 
 // Single request log
 router.use((req, _res, next) => {
@@ -108,6 +125,7 @@ router.post("/", verifyToken, upload.array("photos", 5), async (req, res) => {
   try {
     const userId = req.user.id || req.user._id;
 
+>>>>>>> 7e638c2d8bfdb0bb1d61c847b5090ecc8254222b
     const reporter = await User.findById(userId).select("username email role");
     if (!reporter) return res.status(404).json({ message: "Reporter not found" });
 
@@ -151,6 +169,17 @@ router.post("/", verifyToken, upload.array("photos", 5), async (req, res) => {
       status: "pending",
     });
 
+    // Notify coordinators
+    const coordinators = await User.find({ role: "coordinator" });
+    for (const coord of coordinators) {
+      await notifyUser(
+        coord._id,
+        "New Incident Reported",
+        `${reporter.username || "A resident"} reported a new ${safeType} incident.`,
+        { incidentId: incident._id }
+      );
+    }
+
     res.status(201).json(incident);
   } catch (err) {
     console.error("Incident creation error:", err);
@@ -158,9 +187,7 @@ router.post("/", verifyToken, upload.array("photos", 5), async (req, res) => {
   }
 });
 
-
-
-// GET ALL INCIDENTS
+// Get all incidents
 router.get("/", verifyToken, async (req, res) => {
   try {
     const { status, type } = req.query;
@@ -168,21 +195,9 @@ router.get("/", verifyToken, async (req, res) => {
     if (status) query.status = status;
     if (type) query.type = type;
 
-    const incidents = await Incident.find(query).sort({ createdAt: -1 });
-    res.json(incidents);
-  } catch (err) {
-    console.error("Error fetching incidents:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET MY INCIDENTS (Resident)
-router.get("/my", verifyToken, async (req, res) => {
-  try {
-    const userId = req.user.id || req.user._id;
-    const incidents = await Incident.find({ reporter: userId })
-      .populate("reporter", "name email role")
-      .populate("assignedVolunteers", "name email role")
+    const incidents = await Incident.find(query)
+      .populate("reporter", "username email role")
+      .populate("assignedVolunteers.volunteer", "username email role")
       .sort({ createdAt: -1 });
 
     res.json(incidents);
@@ -191,23 +206,25 @@ router.get("/my", verifyToken, async (req, res) => {
   }
 });
 
-// GET NEARBY INCIDENTS (Volunteer)
+// Get my incidents (Resident)
+router.get("/my", verifyToken, async (req, res) => {
+  try {
+    const userId = req.user.id || req.user._id;
+    const incidents = await Incident.find({ reporter: userId })
+      .populate("reporter", "name email role")
+      .populate("assignedVolunteers", "name email role")
+      .sort({ createdAt: -1 });
+    res.json(incidents);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get nearby incidents (Volunteer)
 router.get("/nearby", verifyToken, async (req, res) => {
   try {
-    const {
-      lng,
-      lat,
-      maxKm = 10,
-      unassigned,
-      type,            
-      severity,       
-      status,        
-      limit = 50,
-    } = req.query;
-
-    if (!lng || !lat) {
-      return res.status(400).json({ message: "lng and lat required" });
-    }
+    const { lng, lat, maxKm = 10, unassigned, type, severity, status, limit = 50 } = req.query;
+    if (!lng || !lat) return res.status(400).json({ message: "lng and lat required" });
 
     const query = {
       location: {
@@ -218,7 +235,6 @@ router.get("/nearby", verifyToken, async (req, res) => {
       },
     };
 
-    // Unassigned only
     if (unassigned === "true") {
       query.$or = [
         { assignedVolunteers: { $exists: false } },
@@ -226,19 +242,16 @@ router.get("/nearby", verifyToken, async (req, res) => {
       ];
     }
 
-    // Type filter (schema stores lowercase)
     if (type) {
       const t = type.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
       if (t.length) query.type = { $in: t };
     }
 
-    // Severity filter
     if (severity) {
       const s = severity.split(",").map(s => s.trim()).filter(Boolean);
       if (s.length) query.severity = { $in: s };
     }
 
-    // Status filter
     if (status) {
       const st = status.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
       if (st.length) query.status = { $in: st };
@@ -254,7 +267,9 @@ router.get("/nearby", verifyToken, async (req, res) => {
     const userId = req.user._id?.toString();
     const enhanced = incidents.map((incident) => {
       const myAssignment = incident.assignedVolunteers?.find((v) => {
-        const vid = typeof v.volunteer === "object" ? v.volunteer?._id?.toString() : v.volunteer?.toString();
+        const vid = typeof v.volunteer === "object"
+          ? v.volunteer?._id?.toString()
+          : v.volunteer?.toString();
         return vid === userId;
       });
       return { ...incident, isAssignedToUser: !!myAssignment, userAssignmentStatus: myAssignment?.status || null };
@@ -262,47 +277,54 @@ router.get("/nearby", verifyToken, async (req, res) => {
 
     res.json(enhanced);
   } catch (err) {
-    console.error("Nearby fetch error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// get single incident details
+// Get assigned incidents
+router.get("/assigned/me", verifyToken, async (req, res) => {
+  try {
+    const userId = req.user._id?.toString();
+    const incidents = await Incident.find({})
+      .populate("reporter", "username email role")
+      .populate("assignedVolunteers.volunteer", "username email role")
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    const assignedToMe = incidents.filter((incident) =>
+      incident.assignedVolunteers?.some((v) => {
+        const volunteerId =
+          typeof v.volunteer === "object"
+            ? v.volunteer?._id?.toString()
+            : v.volunteer?.toString();
+        return volunteerId === userId && v.status?.toLowerCase() !== "declined";
+      })
+    );
+
+    res.json(assignedToMe);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get one incident by ID
 router.get("/:id", verifyToken, async (req, res) => {
   try {
     const incident = await Incident.findById(req.params.id)
       .populate("reporter", "username email role")
       .populate("assignedVolunteers.volunteer", "username email role")
-      .populate("logs.actor", "username email role")
-      .populate("logs.target", "username email role");
-
-    if (!incident) {
-      return res.status(404).json({ message: "Incident not found" });
-    }
-
-    // Volunteers can only see incidents assigned to them
-    if (req.user.role === "volunteer") {
-      const assigned = incident.assignedVolunteers?.some((v) =>
-        v.volunteer?._id?.toString() === req.user._id?.toString()
-      );
-      if (!assigned) {
-        return res.status(403).json({ message: "Not authorized" });
-      }
-    }
-
+      .populate("logs.actor", "username name email role");
+    if (!incident) return res.status(404).json({ message: "Incident not found" });
     res.json(incident);
   } catch (err) {
-    console.error("Incident detail error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-
-// incident handling approval, acceptance, status updates
+// Volunteer accepts task
 router.post("/:id/accept", verifyToken, async (req, res) => {
   try {
     const volunteerId = req.user._id;
-
     const incident = await Incident.findOneAndUpdate(
       { _id: req.params.id, "assignedVolunteers.volunteer": volunteerId },
       {
@@ -315,47 +337,38 @@ router.post("/:id/accept", verifyToken, async (req, res) => {
           logs: {
             action: "accepted",
             actor: volunteerId,
-            target: volunteerId,
-            message: `Volunteer ${volunteerId} accepted the task.`,
+            message: "Volunteer accepted the task.",
             timestamp: new Date(),
           },
         },
       },
       { new: true }
     )
-      .populate("reporter", "name email role")
-      .populate("assignedVolunteers.volunteer", "name email role");
+      .populate("reporter", "username email role")
+      .populate("assignedVolunteers.volunteer", "username email role");
 
-    if (!incident) {
-      return res.status(404).json({ message: "Incident not found" });
-    }
+    if (!incident) return res.status(404).json({ message: "Incident not found" });
 
     const coordinators = await User.find({ role: "coordinator" });
     for (const coord of coordinators) {
-      if (coord.pushTokens?.length > 0) {
-        for (const pt of coord.pushTokens) {
-          await sendPushNotification(
-            pt.token,
-            "Task Accepted",
-            `${req.user.username || "A volunteer"} accepted an assigned task.`,
-            { screen: "/tabs/profile/tasks" }
-          );
-        }
-      }
+      await notifyUser(
+        coord._id,
+        "Volunteer Accepted Task",
+        `${req.user.username || "A volunteer"} accepted "${incident.type}" incident.`,
+        { incidentId: incident._id }
+      );
     }
 
     res.json({ message: "Task accepted", incident });
   } catch (err) {
-    console.error("Accept error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// DECLINE
+// Volunteer declines task
 router.post("/:id/decline", verifyToken, async (req, res) => {
   try {
     const volunteerId = req.user._id;
-
     const incident = await Incident.findOneAndUpdate(
       { _id: req.params.id, "assignedVolunteers.volunteer": volunteerId },
       {
@@ -367,22 +380,18 @@ router.post("/:id/decline", verifyToken, async (req, res) => {
           logs: {
             action: "declined",
             actor: volunteerId,
-            target: volunteerId,
-            message: `Volunteer ${volunteerId} declined the task.`,
+            message: "Volunteer declined the task.",
             timestamp: new Date(),
           },
         },
       },
       { new: true }
     )
-      .populate("reporter", "name email role")
-      .populate("assignedVolunteers.volunteer", "name email role");
+      .populate("reporter", "username email role")
+      .populate("assignedVolunteers.volunteer", "username email role");
 
-    if (!incident) {
-      return res.status(404).json({ message: "Incident not found" });
-    }
+    if (!incident) return res.status(404).json({ message: "Incident not found" });
 
-    // If all volunteers declined → revert incident status
     const allDeclined = incident.assignedVolunteers.every((v) => v.status === "declined");
     if (allDeclined) {
       incident.status = "approved";
@@ -391,135 +400,101 @@ router.post("/:id/decline", verifyToken, async (req, res) => {
 
     const coordinators = await User.find({ role: "coordinator" });
     for (const coord of coordinators) {
-      if (coord.pushTokens?.length > 0) {
-        for (const pt of coord.pushTokens) {
-          await sendPushNotification(
-            pt.token,
-            "Task Declined",
-            `${req.user.username || "A volunteer"} declined a task.`,
-            { screen: "/tabs/profile/tasks" }
-          );
-        }
-      }
+      await notifyUser(
+        coord._id,
+        "Volunteer Declined Task",
+        `${req.user.username || "A volunteer"} declined "${incident.type}" incident.`,
+        { incidentId: incident._id }
+      );
     }
 
     res.json({ message: "Task declined", incident });
   } catch (err) {
-    console.error("Decline error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// STATUS UPDATE
-router.patch("/:id/status", verifyToken, async (req, res) => {
+// Volunteer completes task
+router.post("/:id/complete", verifyToken, async (req, res) => {
   try {
-    const { status } = req.body;
-    const valid = ["pending", "approved", "assigned", "in_progress", "resolved"];
-    if (!valid.includes(status))
-      return res.status(400).json({ message: "Invalid status" });
-
-    const userId = req.user.id || req.user._id;
-    const incident = await Incident.findByIdAndUpdate(
-      req.params.id,
+    const volunteerId = req.user._id;
+    const incident = await Incident.findOneAndUpdate(
+      { _id: req.params.id, "assignedVolunteers.volunteer": volunteerId },
       {
-        $set: { status },
+        $set: {
+          "assignedVolunteers.$.status": "completed",
+          "assignedVolunteers.$.respondedAt": new Date(),
+          status: "completed",
+        },
         $push: {
           logs: {
-            action: "status_update",
-            actor: userId,
-            message: `Status updated to ${status}`,
+            action: "completed",
+            actor: volunteerId,
+            message: "Volunteer marked the task as completed.",
             timestamp: new Date(),
           },
         },
       },
       { new: true }
-    );
+    )
+      .populate("reporter", "username email role")
+      .populate("assignedVolunteers.volunteer", "username email role");
 
-    if (!incident) return res.status(404).json({ message: "Not found" });
-    res.json(incident);
+    if (!incident) return res.status(404).json({ message: "Incident not found" });
+
+    const coordinators = await User.find({ role: "coordinator" });
+    for (const coord of coordinators) {
+      await notifyUser(
+        coord._id,
+        "Task Completed",
+        `${req.user.username || "A volunteer"} completed "${incident.type}" incident.`,
+        { incidentId: incident._id }
+      );
+    }
+
+    res.json({ message: "Task completed", incident });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// ASSIGNED TO ME
-router.get("/assigned/me", verifyToken, async (req, res) => {
-  try {
-    const userId = req.user._id?.toString();
-    console.log("Fetching assigned incidents for user:", userId);
-
-    const incidents = await Incident.find({})
-      .populate("reporter", "username email role")
-      .populate("assignedVolunteers.volunteer", "username email role")
-      .sort({ updatedAt: -1 })
-      .lean();
-
-    const assignedToMe = incidents.filter((incident) => {
-      return incident.assignedVolunteers?.some((v) => {
-        const volunteerId =
-          typeof v.volunteer === "object"
-            ? v.volunteer?._id?.toString()
-            : v.volunteer?.toString();
-        return volunteerId === userId && v.status?.toLowerCase() !== "declined";
-      });
-    });
-
-    console.log(`Found ${assignedToMe.length} assigned incidents for volunteer ${userId}`);
-    res.json(assignedToMe);
-  } catch (err) {
-    console.error("Error fetching assigned tasks:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-});
-
-// APPROVE (Coordinator)
+// Approve incident (Coordinator)
 router.post("/:id/approve", verifyToken, isCoordinator, async (req, res) => {
   try {
     const incident = await Incident.findById(req.params.id)
-      .populate("reporter", "name email")
+      .populate("reporter", "name email role")
       .populate("assignedVolunteers.volunteer", "name email role");
 
-    if (!incident) {
-      return res.status(404).json({ message: "Incident not found" });
-    }
+    if (!incident) return res.status(404).json({ message: "Incident not found" });
 
     incident.status = "approved";
     incident.logs.push({
       action: "approved",
       actor: req.user._id,
-      message: `Incident approved by coordinator ${req.user.username || req.user.email}`,
+      message: `Incident approved by ${req.user.username || req.user.email}`,
       timestamp: new Date(),
     });
 
     await incident.save();
-
-    const updatedIncident = await Incident.findById(req.params.id)
-      .populate("reporter", "name email role")
-      .populate("assignedVolunteers.volunteer", "name email role");
-
-    res.json({ message: "Incident approved successfully", incident: updatedIncident });
+    res.json({ message: "Incident approved", incident });
   } catch (err) {
-    console.error("Approve error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// DISPATCH (Coordinator)
+// Dispatch volunteers (Coordinator)
 router.post("/:id/dispatch", verifyToken, isCoordinator, async (req, res) => {
   try {
-    const { volunteerIds } = req.body; // Array of user IDs
-    if (!Array.isArray(volunteerIds) || volunteerIds.length === 0) {
+    const { volunteerIds } = req.body;
+    if (!Array.isArray(volunteerIds) || volunteerIds.length === 0)
       return res.status(400).json({ message: "No volunteers provided" });
-    }
 
     const incident = await Incident.findById(req.params.id);
     if (!incident) return res.status(404).json({ message: "Incident not found" });
 
-    const existingIds = incident.assignedVolunteers
-      .map((v) => v?.volunteer?.toString?.())
-      .filter(Boolean);
+    const existingIds = incident.assignedVolunteers.map(v => v?.volunteer?.toString?.()).filter(Boolean);
 
-    volunteerIds.forEach((id) => {
+    volunteerIds.forEach(id => {
       const volunteerObjectId = new mongoose.Types.ObjectId(id);
       if (!existingIds.includes(id)) {
         incident.assignedVolunteers.push({
@@ -543,107 +518,80 @@ router.post("/:id/dispatch", verifyToken, isCoordinator, async (req, res) => {
       .populate("reporter", "name email role")
       .populate("assignedVolunteers.volunteer", "name email role");
 
-    const coordinators = await User.find({ role: "coordinator" });
-    for (const coord of coordinators) {
-      if (coord.pushTokens?.length > 0) {
-        for (const pt of coord.pushTokens) {
-          await sendPushNotification(
-            pt.token,
-            "New Task Assigned",
-            `Incident "${incident.type}" assigned to volunteers.`,
-            { screen: "/tabs/incidents" }
-          );
-        }
-      }
-    }
-
-    return res.json({ message: "Volunteers assigned successfully", incident: populated });
-  } catch (err) {
-    console.error("Dispatch error:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// REMOVE A SINGLE PHOTO 
-router.patch("/:id/remove-photo", verifyToken, async (req, res) => {
-  try {
-    const { publicId, url } = req.body || {};
-    if (!publicId && !url) {
-      return res.status(400).json({ message: "publicId or url is required" });
-    }
-
-    const incident = await Incident.findById(req.params.id);
-    if (!incident) return res.status(404).json({ message: "Incident not found" });
-
-    const userId = (req.user.id || req.user._id).toString();
-    const isReporter = incident.reporter?.toString?.() === userId;
-    if (!isReporter && req.user.role !== "coordinator") {
-      return res.status(403).json({ message: "Not authorized" });
-    }
-
-    let pid = publicId;
-    if (!pid && url) pid = publicIdFromUrl(url);
-
-    if (pid) {
-      // remove by publicId
-      const idxPid = (incident.cloudinaryPublicIds || []).indexOf(pid);
-      if (idxPid !== -1) {
-        incident.cloudinaryPublicIds.splice(idxPid, 1);
-        if (incident.photos?.[idxPid]) incident.photos.splice(idxPid, 1);
-      } else if (url) {
-        // fallback remove by URL
-        incident.photos = (incident.photos || []).filter((u) => u !== url);
-      }
-    } else if (url) {
-      incident.photos = (incident.photos || []).filter((u) => u !== url);
-    }
-
-    // update primary
-    if (incident.photoUrl && !incident.photos.includes(incident.photoUrl)) {
-      incident.photoUrl = incident.photos[0] || "";
-    }
-
-    await incident.save();
-
-    if (pid) {
-      await cloudinary.uploader.destroy(pid).catch((e) =>
-        console.warn("Cloudinary destroy failed:", pid, e?.message || e)
+    for (const volunteerId of volunteerIds) {
+      await notifyUser(
+        volunteerId,
+        "New Task Assigned",
+        `You have been assigned to handle incident: ${incident.type}`,
+        { incidentId: incident._id }
       );
     }
 
-    res.json({ message: "Photo removed", incident });
+    res.json({ message: "Volunteers assigned", incident: populated });
   } catch (err) {
-    console.error("Remove photo error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// DELETE INCIDENT (cleanup Cloudinary)
-router.delete("/:id", verifyToken, async (req, res) => {
+// Contact coordinators (Volunteer → Coordinator)
+router.post("/:id/contact-coordinators", verifyToken, async (req, res) => {
   try {
     const incident = await Incident.findById(req.params.id);
     if (!incident) return res.status(404).json({ message: "Incident not found" });
 
-    const userId = (req.user.id || req.user._id).toString();
-    const isReporter = incident.reporter?.toString?.() === userId;
+    const incidentType=incident.customType || incident.type || "Unknown Type";
+    const incidentLocation=incident.location?.name || "Unknown Location";
 
-    if (!isReporter && req.user.role !== "coordinator") {
-      return res.status(403).json({ message: "Not authorized to delete this incident" });
+    const finalMessage=message && message.trim()!==""
+    ? `${message} (Incident: ${incidentType} at ${incidentLocation})`
+    : `A volunteer requested guidance for incident : ${incidentType} at ${incidentLocation}.`;
+
+    // Notify all coordinators
+    const coordinators = await User.find({ role: "coordinator" });
+    for (const coord of coordinators) {
+      await notifyUser(
+        coord._id,
+        "Volunteer Needs Assistance",
+       finalMessage,
+        { incidentId: incident._id }
+      );
     }
 
-    let publicIds = incident.cloudinaryPublicIds || [];
-    if (!publicIds.length && incident.photos?.length) {
-      publicIds = incident.photos.map(publicIdFromUrl).filter(Boolean);
-    }
+    // Log contact action
+    incident.logs.push({
+      action: "contacted_coordinators",
+      actor: req.user._id,
+      message: message || "Volunteer contacted coordinators.",
+      timestamp: new Date(),
+    });
+    await incident.save();
 
-    await deleteCloudinaryByPublicIds(publicIds);
-    await Incident.deleteOne({ _id: incident._id });
-
-    res.json({ message: "Incident deleted and images cleaned up" });
+    res.json({ message: "Coordinators notified successfully" });
   } catch (err) {
     console.error("Delete incident error:", err);
     res.status(500).json({ error: err.message || "Server error" });
   }
 });
 
+
+// Get completed tasks for the logged-in volunteer
+router.get("/volunteer/completed", verifyToken, async (req, res) => {
+  try {
+    const volunteerId = req.user._id;
+
+    // Find incidents assigned to this volunteer with status "completed"
+    const incidents = await Incident.find({
+      "assignedVolunteers.volunteer": volunteerId,
+      "assignedVolunteers.status": "completed",
+    })
+      .populate("reporter", "username email role")
+      .populate("assignedVolunteers.volunteer", "username email role")
+      .sort({ updatedAt: -1 });
+
+    res.json(incidents);
+  } catch (err) {
+    console.error("Error fetching completed incidents:", err);
+    res.status(500).json({ message: "Failed to load completed incidents" });
+  }
+});
 export default router;

@@ -8,7 +8,7 @@ import "react-native-gesture-handler";
 import "react-native-reanimated";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import BottomSheet, { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
-
+import { ActionSheetProvider } from "@expo/react-native-action-sheet"; 
 // notifications behavior
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -38,6 +38,7 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+    <ActionSheetProvider>
       <BottomSheetModalProvider>
         <SafeAreaProvider>
           <View style={{ flex: 1, backgroundColor }}>
@@ -55,6 +56,7 @@ export default function RootLayout() {
           </View>
         </SafeAreaProvider>
       </BottomSheetModalProvider>
+      </ActionSheetProvider>
     </GestureHandlerRootView>
   );
 }

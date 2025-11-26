@@ -180,10 +180,62 @@ export default function IncidentCardDetailed({
 
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         setDistance(R * c);
-      } catch { }
+      } catch {}
     };
     calc();
   }, [incident?._id]);
+
+  // Added ActionSheet hook
+  const { showActionSheetWithOptions } = useActionSheet();
+
+  //  Full map-opening logic with coordinate check + fallback
+  const openMapsSelector = async () => {
+    // --- Show error if coordinates missing ---
+    if (!coords || coords.length !== 2) {
+      Alert.alert("Location Error", "This incident does not have valid coordinates.");
+      return;
+    }
+
+    //  Adjust based on how your DB stores coordinates
+    const [lng, lat] = coords; // if MongoDB: [lng, lat]; swap if needed
+
+    try {
+      showActionSheetWithOptions(
+        {
+          options: ["Google Maps", "Apple Maps", "Waze", "Cancel"],
+          cancelButtonIndex: 3,
+        },
+        async (index) => {
+          let url = "";
+
+          if (index === 0) {
+          
+            url = `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`;
+          } else if (index === 1) {
+         
+            url = `maps://?daddr=${lat},${lng}&dirflg=d`;
+          } else if (index === 2) {
+           
+            url = `waze://?ll=${lat},${lng}&navigate=yes`;
+          }
+
+          // --- Added fallback logic ---
+          if (url) {
+            const supported = await Linking.canOpenURL(url);
+            if (supported) {
+              await Linking.openURL(url);
+            } else {
+              //Fallback to Google Maps in browser
+              const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+              await Linking.openURL(webUrl);
+            }
+          }
+        }
+      );
+    } catch (e: any) {
+      Alert.alert("Error", e?.message || "Unable to open map.");
+    }
+  };
 
   if (loading || !incident) {
     return (
@@ -194,25 +246,25 @@ export default function IncidentCardDetailed({
     );
   }
 
-  const severity = (incident?.severity as string) || "Unknown";
+  const severity = incident?.severity || "Unknown";
   const severityColor =
     severity === "High"
       ? "#FF5252"
       : severity === "Medium"
-        ? "#FFB300"
-        : severity === "Low"
-          ? "#4CAF50"
-          : C.subtext;
+      ? "#FFB300"
+      : severity === "Low"
+      ? "#4CAF50"
+      : C.subtext;
 
-  const status = (incident?.status as string) || "pending";
+  const status = incident?.status || "pending";
   const statusColor =
     status === "resolved"
       ? "#10B981"
       : status === "in_progress" || status === "assigned"
-        ? "#3B82F6"
-        : status === "approved"
-          ? "#8B5CF6"
-          : "#F59E0B";
+      ? "#3B82F6"
+      : status === "approved"
+      ? "#8B5CF6"
+      : "#F59E0B";
 
   const reporterName =
     incident?.reporterName || incident?.reporter?.username || "Unknown Reporter";
@@ -392,9 +444,7 @@ export default function IncidentCardDetailed({
 
       {/* DESCRIPTION */}
       <Section title="Description">
-        <Text style={styles(C).body}>
-          {incident.description || "No description provided."}
-        </Text>
+        <Text style={styles(C).body}>{incident.description || "No description provided."}</Text>
       </Section>
 
       {/* STATUS / SEVERITY */}
