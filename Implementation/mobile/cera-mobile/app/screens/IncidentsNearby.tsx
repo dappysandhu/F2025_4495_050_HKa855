@@ -36,7 +36,7 @@ type Incident = {
 
 const TYPE_LABELS = ["All", "Fire", "Medical", "Flood", "Earthquake", "Accident", "Crime", "Rescue", "Other"];
 
-/** NEW: map incident types to static images for RN Maps `image` prop */
+//map incident types to marker icons
 const MARKER_ICONS: Record<string, any> = {
   fire: require("@/assets/icons/incidents/fire.png"),
   medical: require("@/assets/icons/incidents/medical.png"),
