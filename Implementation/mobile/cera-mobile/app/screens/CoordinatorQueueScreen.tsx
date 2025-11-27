@@ -34,7 +34,7 @@ export default function CoordinatorQueueScreen() {
 
   const filters = ["All", "Pending", "Approved", "Assigned", "In Progress", "Resolved"];
 
-  // 🔹 Fetch incidents (includes completed)
+  //  Fetch incidents (includes completed)
   const load = async () => {
     setLoading(true);
     try {
@@ -44,7 +44,7 @@ export default function CoordinatorQueueScreen() {
         api.get("/incidents?status=assigned"),
         api.get("/incidents?status=in_progress"),
         api.get("/incidents?status=resolved"),
-        api.get("/incidents?status=completed"), // ✅ include completed incidents
+        api.get("/incidents?status=completed"),
       ]);
 
       const [
@@ -62,7 +62,7 @@ export default function CoordinatorQueueScreen() {
         ...(assignedRes.data || []),
         ...(inProgressRes.data || []),
         ...(resolvedRes.data || []),
-        ...(completedRes.data || []), // ✅ merge completed too
+        ...(completedRes.data || []), 
       ];
 
       setIncidents(allIncidents);
@@ -79,7 +79,7 @@ export default function CoordinatorQueueScreen() {
     load();
   }, []);
 
-  // 🔹 Filter incidents by selected status
+  // Filter incidents by selected status
   useEffect(() => {
     if (statusFilter === "All") {
       setFiltered(incidents);
@@ -87,7 +87,7 @@ export default function CoordinatorQueueScreen() {
       const normalized = statusFilter.toLowerCase().replace(" ", "_");
       const filteredList = incidents.filter((i) => {
         const st = i.status?.toLowerCase();
-        // ✅ include completed incidents in resolved filter
+        // include completed incidents in resolved filter
         if (normalized === "resolved") return st === "resolved" || st === "completed";
         return st === normalized;
       });
@@ -95,7 +95,7 @@ export default function CoordinatorQueueScreen() {
     }
   }, [statusFilter, incidents]);
 
-  // 🔹 Approve an incident
+  // Approve an incident
   const approve = async (id: string) => {
     try {
       setApprovingId(id);
@@ -110,14 +110,21 @@ export default function CoordinatorQueueScreen() {
     }
   };
 
-  // 🔹 Open dispatch modal
+  //  Open dispatch modal
   const openDispatchModal = async (incident: any) => {
     try {
       setSelectedIncident(incident);
       setSelectedVolunteers([]);
       setModalVisible(true);
 
-      const res = await api.get("/users?role=volunteer");
+     const res = await api.get("/users", {
+  params: {
+    role: "volunteer",
+    approved: true,
+    certified: true,
+    available: true,   
+  },
+})
       setVolunteers(res.data || []);
 
       const assignedIds =
@@ -131,7 +138,7 @@ export default function CoordinatorQueueScreen() {
     }
   };
 
-  // 🔹 Dispatch selected volunteers
+  //  Dispatch selected volunteers
   const dispatch = async () => {
     if (!selectedIncident) return;
 
@@ -161,12 +168,12 @@ export default function CoordinatorQueueScreen() {
     );
   };
 
-  // 🔹 UI Rendering
+  //  UI Rendering
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: C.background }]}>
       <BackHeader title="Coordinator Dashboard" />
 
-      {/* ✅ Beautiful Filter Bar */}
+
       <View style={styles.filterContainer}>
         <ScrollView
           horizontal

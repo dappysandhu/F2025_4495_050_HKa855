@@ -64,7 +64,7 @@ export default function HomeScreen() {
     }, [])
   );
 
-  // ⏳ Loading state
+  //  Loading state
   if (loading) {
     return (
       <SafeAreaView style={[styles.centered, { backgroundColor: themeColors.background }]}>
@@ -182,7 +182,8 @@ export default function HomeScreen() {
           </ThemedText>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.coloredCard, { backgroundColor: pastel.gray, marginLeft: 10 }]}>
+        <TouchableOpacity style={[styles.coloredCard, { backgroundColor: pastel.gray, marginLeft: 10 }]}
+        onPress={() => router.push("/screens/AllVolunteersScreen")}>
           <Ionicons name="settings-outline" size={32} color="#fff" />
           <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>Coordinator Settings</ThemedText>
         </TouchableOpacity>
@@ -199,12 +200,14 @@ export default function HomeScreen() {
       </TouchableOpacity>
 
       <View style={styles.row}>
-        <TouchableOpacity style={[styles.coloredCard, { backgroundColor: pastel.teal, marginRight: 10 }]}>
+        <TouchableOpacity style={[styles.coloredCard, { backgroundColor: pastel.teal, marginRight: 10 }]}
+        onPress={() => router.push("/screens/ReportIncidentScreen")}>
           <Ionicons name="people-outline" size={32} color="#fff" />
           <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>Request Volunteer Help</ThemedText>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.coloredCard, { backgroundColor: pastel.purple, marginLeft: 10 }]}>
+        <TouchableOpacity style={[styles.coloredCard, { backgroundColor: pastel.purple, marginLeft: 10 }]} 
+            onPress={() => router.push("/screens/NearbyVolunteers")}>
           <Ionicons name="location-outline" size={32} color="#fff" />
           <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>View Nearby Volunteers</ThemedText>
         </TouchableOpacity>
@@ -225,7 +228,8 @@ export default function HomeScreen() {
           </ThemedText>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.coloredCard, { backgroundColor: pastel.gray, marginLeft: 10 }]}>
+        <TouchableOpacity style={[styles.coloredCard, { backgroundColor: pastel.gray, marginLeft: 10 }]}
+        onPress={() => router.push("/screens/EmergencyContactScreen")}>
           <Ionicons name="call-outline" size={32} color="#fff" />
           <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>Emergency Contacts</ThemedText>
         </TouchableOpacity>
@@ -259,7 +263,8 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.row}>
-        <TouchableOpacity style={[styles.coloredCard, { backgroundColor: pastel.purple, marginRight: 10 }]}>
+        <TouchableOpacity style={[styles.coloredCard, { backgroundColor: pastel.purple, marginRight: 10 }]}
+        onPress={() => router.push("/screens/UpdateAvailability")}>
           <Ionicons name="person-outline" size={32} color="#fff" />
           <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>Update Availability</ThemedText>
         </TouchableOpacity>

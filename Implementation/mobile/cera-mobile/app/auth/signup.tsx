@@ -52,8 +52,11 @@ export default function SignupScreen() {
     try {
       setLoading(true);
 
-      // get location befire sending data
-      const location = await fetchCurrentLocation();
+      let location = null;
+      // get location before sending data
+       if (role === "volunteer") {
+      location = await fetchCurrentLocation();
+    }
 
       const signupData = {
         username,

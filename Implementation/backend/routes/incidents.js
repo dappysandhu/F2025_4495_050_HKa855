@@ -5,7 +5,6 @@ import cloudinary from "../config/cloudinary.js";
 import Incident from "../models/Incidents.js";
 import User from "../models/User.js";
 import { verifyToken, isCoordinator } from "../middleware/authMiddleware.js";
-import mongoose from "mongoose";
 import { notifyUser } from "../utils/notifyUser.js";
 
 const router = express.Router();
@@ -125,7 +124,6 @@ router.post("/", verifyToken, upload.array("photos", 5), async (req, res) => {
   try {
     const userId = req.user.id || req.user._id;
 
->>>>>>> 7e638c2d8bfdb0bb1d61c847b5090ecc8254222b
     const reporter = await User.findById(userId).select("username email role");
     if (!reporter) return res.status(404).json({ message: "Reporter not found" });
 

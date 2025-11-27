@@ -9,6 +9,16 @@ const userSchema = new mongoose.Schema({
   skills: [{ type: String }],
   certified: { type: Boolean, default: false },
   approved:{type : Boolean , default: false},
+
+  available: { type: Boolean, default: false },
+  lastAvailableUpdate: { type: Date },
+
+  emergencyContacts: [
+  {
+    name: String,
+    phone: String,
+  }
+],
   location: {
    type: {type: String , enum: [ "Point"], default: "Point"},
     coordinates:{type: [Number] , default: [0,0]}
