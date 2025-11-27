@@ -9,6 +9,7 @@ import {
   Modal,
   Dimensions,
   FlatList,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
@@ -186,7 +187,6 @@ export default function IncidentCardDetailed({
   }, [incident?._id]);
 
   // Added ActionSheet hook
-  const { showActionSheetWithOptions } = useActionSheet();
 
   //  Full map-opening logic with coordinate check + fallback
   const openMapsSelector = async () => {
@@ -270,23 +270,6 @@ export default function IncidentCardDetailed({
     incident?.reporterName || incident?.reporter?.username || "Unknown Reporter";
 
   const { showActionSheetWithOptions } = useActionSheet();
-
-  const openMapsSelector = () => {
-    if (!coords) return;
-    const [lng, lat] = coords;
-    showActionSheetWithOptions(
-      {
-        options: ["Google Maps", "Apple Maps", "Waze", "Cancel"],
-        cancelButtonIndex: 3,
-      },
-      async (index) => {
-        if (index === 0)
-          Linking.openURL(`comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`);
-        else if (index === 1) Linking.openURL(`maps://?daddr=${lat},${lng}&dirflg=d`);
-        else if (index === 2) Linking.openURL(`waze://?ll=${lat},${lng}&navigate=yes`);
-      }
-    );
-  };
 
   const assignments: Assignment[] = Array.isArray(incident?.assignedVolunteers)
     ? incident.assignedVolunteers

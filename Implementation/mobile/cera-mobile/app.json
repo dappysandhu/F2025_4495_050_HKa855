@@ -1,5 +1,6 @@
 {
   "expo": {
+     "entryPoint": "expo-router/entry",
     "name": "cera-mobile",
     "slug": "cera",
     "version": "1.0.0",
@@ -14,9 +15,14 @@
         "LSApplicationQueriesSchemes": [
           "comgooglemaps",
           "waze",
+          "maps",
+          "comgooglemaps",
+          "waze",
           "maps"
-        ]
-      }
+        ],
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.dsandhu.cera"
     },
     "android": {
       "adaptiveIcon": {
