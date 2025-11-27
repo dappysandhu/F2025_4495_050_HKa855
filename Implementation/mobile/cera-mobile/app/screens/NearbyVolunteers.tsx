@@ -52,7 +52,7 @@ const SKILL_FILTERS = [
 ];
 
 // default volunteer marker icon
-const VOLUNTEER_ICON = require("@/assets/icons/incidents/pointer.jpg");
+const VOLUNTEER_ICON = require("@/assets/icons/incidents/pointer.png");
 
 // -------- Marker Component --------
 const VolunteerMarker = React.memo(
@@ -186,7 +186,7 @@ export default function NearbyVolunteers() {
       );
   }, [maxKm, region]);
 
-  // 🔄 Auto-refresh volunteers every 5 seconds (LIVE LOCATION UPDATE)
+  //  Auto-refresh volunteers every 5 seconds (LIVE LOCATION UPDATE)
 useEffect(() => {
   if (!region) return;
 
