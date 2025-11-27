@@ -36,7 +36,7 @@ export default function VolunteerDashboard({ stats }: any) {
 
   return (
     <View style={styles.gridContainer}>
-      {/* ✅ only check stats, not stats.graph */}
+      {/* nly check stats, not stats.graph */}
       {stats && (
         <View style={[styles.statsCard, { backgroundColor: C.card }]}>
           <ThemedText type="defaultSemiBold" style={styles.statsTitle}>
