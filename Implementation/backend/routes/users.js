@@ -1,8 +1,8 @@
 import express from "express"
 import User from "../models/User.js"
 import { verifyToken, isCoordinator} from "../middleware/authMiddleware.js"
-
-
+import { notifyUser } from "../utils/notifyUser.js";
+import { sendPushNotification } from "../utils/sendPushNotification.js";
 const router =express.Router()
 
 //get logged in user
@@ -85,15 +85,18 @@ router.get("/pending", verifyToken, isCoordinator, async (req, res) => {
 // Get all or approved volunteers
 router.get("/", verifyToken, async (req, res) => {
   try {
-    const { role, approved } = req.query;
+    const { role, approved, certified, available } = req.query;
 
-    // Build dynamic filter
     const filter = {};
-    if (role) filter.role = role;
-    if (approved) filter.approved = approved === "true";
 
-    const users = await User.find(filter).select("-password");
+    if (role) filter.role = role;
+    if (approved !== undefined) filter.approved = approved === "true";
+    if (certified !== undefined) filter.certified = certified === "true";
+    if (available !== undefined) filter.available = available === "true";
+
+    const users = await User.find(filter).select("-passwordHash");
     res.json(users);
+
   } catch (err) {
     console.error("Error fetching users:", err);
     res.status(500).json({ error: "Failed to fetch users" });
@@ -178,5 +181,164 @@ router.patch("/me", verifyToken, async (req, res) => {
   }
 });
 
+// near by volunteers
+router.get("/nearby", verifyToken, async (req, res) => {
+  try {
+    const { lat, lng, maxKm = 5 } = req.query;
 
+    if (!lat || !lng) {
+      return res.status(400).json({ message: "lat and lng are required" });
+    }
+
+    const volunteers = await User.find({
+      role: "volunteer",
+      approved: true,        
+      certified: true,       
+      available: true,       
+      location: {
+        $near: {
+          $geometry: {
+            type: "Point",
+            coordinates: [parseFloat(lng), parseFloat(lat)]
+          },
+          $maxDistance: maxKm * 1000,
+        }
+      }
+    }).select("-passwordHash");
+
+    res.json(volunteers);
+  } catch (err) {
+    console.error("Nearby volunteer error:", err);
+    res.status(500).json({ message: "Error finding volunteers" });
+  }
+});
+   
+
+//sending help message to volunteer
+router.post("/:id/request-help", verifyToken, async (req, res) => {
+  try {
+    const { lat, lng, address } = req.body;
+
+    if (!lat || !lng) {
+      return res.status(400).json({ message: "lat and lng required" });
+    }
+
+    // Use received address, or fallback to raw coordinates
+    const finalAddress = address
+      ? address
+      : `Lat: ${lat}, Lng: ${lng}`;
+
+    // Debug log
+    console.log("Help Request → Sending Address:", finalAddress);
+
+    // Send push notification to selected volunteer
+    await notifyUser(
+      req.params.id,
+      "Emergency Help Request",
+      `A nearby resident needs assistance at ${finalAddress}`,
+      { lat, 
+        lng,
+         address: finalAddress,
+         coordinates: [lng, lat],  }
+    );
+
+    res.json({ message: "Help request sent successfully" });
+  } catch (err) {
+    console.error("Help request error:", err);
+    res.status(500).json({ message: "Failed to send help request" });
+  }
+});
+
+// UPDATE AVAILABILITY
+router.patch("/me/availability", verifyToken, async (req, res) => {
+  try {
+    const { available } = req.body;
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      {
+        available,
+        lastAvailableUpdate: new Date(),
+      },
+      { new: true }
+    );
+
+    res.json({
+      message: "Availability updated",
+      available: user.available,
+      lastAvailableUpdate: user.lastAvailableUpdate,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to update availability" });
+  }
+});
+
+
+// UPDATE LIVE LOCATION
+router.patch("/me/location", verifyToken, async (req, res) => {
+  try {
+    const { coordinates } = req.body;
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      {
+        location: { type: "Point", coordinates },
+        locationUpdatedAt: new Date(),
+      },
+      { new: true }
+    );
+
+    res.json({ message: "Location updated", user });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to update location" });
+  }
+});
+
+// ADD EMERGENCY CONTACT
+
+
+router.post("/me/emergency-contacts", verifyToken, async (req, res) => {
+  try {
+    const { name, phone } = req.body;
+
+    if (!name || !phone) {
+      return res.status(400).json({ message: "Name and phone required" });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { $push: { emergencyContacts: { name, phone } } },
+      { new: true }
+    );
+
+    res.json({
+      message: "Contact added",
+      emergencyContacts: user.emergencyContacts
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE EMERGENCY CONTACT
+router.delete("/me/emergency-contacts/:index", verifyToken, async (req, res) => {
+  try {
+    const index = parseInt(req.params.index);
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.emergencyContacts.splice(index, 1);
+    await user.save();
+
+    res.json({
+      message: "Contact removed",
+      emergencyContacts: user.emergencyContacts
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 export default router;

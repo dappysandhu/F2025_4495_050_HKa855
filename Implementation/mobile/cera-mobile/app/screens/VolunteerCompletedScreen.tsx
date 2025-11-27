@@ -15,7 +15,7 @@ import { useColorScheme } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { API_BASE_URL } from "@/constants/config";
-import IncidentCard from "@/components/IncidentCard"; // ✅ You already use this in other screens
+import IncidentCard from "@/components/IncidentCard";
 import BackHeader from "@/components/ui/BackHeader";
 
 export default function VolunteerCompletedScreen() {
@@ -32,7 +32,7 @@ export default function VolunteerCompletedScreen() {
       const token = await AsyncStorage.getItem("token");
       if (!token) return;
 
-      // ✅ Fetch completed tasks for logged-in volunteer
+      // Fetch completed tasks for logged-in volunteer
       const res = await axios.get(`${API_BASE_URL}/incidents/volunteer/completed`, {
         headers: { Authorization: `Bearer ${token}` },
       });

@@ -16,8 +16,26 @@ router.post("/register", async (req, res) => {
     if (existingUser)
       return res.status(400).json({ message: "Email already exists" });
 
+    //check duplicate phone
+    const existingPhone = await User.findOne({phone})
+    if(existingPhone)
+      return res.status(400).json({message: "Phone number already exists"})
+
+    if(!/^\d{10}$/.test(phone)){
+      return res.status(400).json({message: "Phone number must be 10 digits"})
+    }
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
+
+    const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{6,}$/;
+
+    if (!passwordRegex.test(password)) {
+      return res.status(400).json({
+     message: "Password must be at least 6 characters, include a letter and a number.",
+  });
+}
+ // Only use location for volunteers
+    const userLocation = role === "volunteer" ? location : null;
 
     // Create user
     const user = new User({
@@ -29,11 +47,12 @@ router.post("/register", async (req, res) => {
       skills,
       location,
       certified: role === "volunteer" ? false : true, 
+       location: userLocation
     });
 
     await user.save();
 
-    // ✅ Notify all coordinators when a volunteer registers
+    //  Notify all coordinators when a volunteer registers
     if (user.role === "volunteer" && !user.certified) {
       const coordinators = await User.find({ role: "coordinator" });
       for (const coord of coordinators) {
