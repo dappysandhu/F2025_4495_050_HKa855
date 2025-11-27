@@ -16,6 +16,8 @@ import { API_BASE_URL } from "@/constants/config";
 import axios from "axios";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
+import VolunteerDashboard from "@/components/dashboard/VolunteerDashboard";
+
 
 export default function HomeScreen() {
   const [user, setUser] = useState<any>(null);
@@ -23,6 +25,8 @@ export default function HomeScreen() {
   const [unreadCount, setUnreadCount] = useState(0);
   const colorScheme = useColorScheme();
   const themeColors = Colors[colorScheme || "light"];
+  const [stats, setStats] = useState<any>(null);
+  console.log("Rendering HomeScreen with stats:", stats);
 
   // Fetch user and notifications
   const fetchUserAndNotifications = async () => {
@@ -38,6 +42,7 @@ export default function HomeScreen() {
         headers: { Authorization: `Bearer ${token}` },
       });
       setUser(userRes.data);
+      console.log("Stats URL:", `${API_BASE_URL}/users/${userRes.data._id}/stats`);
 
       //  Get unread notifications count
       const notifRes = await axios.get(`${API_BASE_URL}/notifications/me`, {
@@ -45,6 +50,14 @@ export default function HomeScreen() {
       });
       const unread = notifRes.data.filter((n: any) => !n.read).length;
       setUnreadCount(unread);
+      //  Get volunteer stats if user is a volunteer
+      if (userRes.data.role === "volunteer") {
+        const statsRes = await axios.get(
+          `${API_BASE_URL}/users/${userRes.data._id}/stats`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        setStats(statsRes.data);
+      }
     } catch (error: any) {
       console.error("Failed to load dashboard:", error.message);
       Alert.alert("Error", "Failed to load dashboard data.");
@@ -52,6 +65,7 @@ export default function HomeScreen() {
       setLoading(false);
     }
   };
+
 
   useEffect(() => {
     fetchUserAndNotifications();
@@ -91,6 +105,7 @@ export default function HomeScreen() {
   const goToMyTasks = () => router.replace("/tabs/profile/tasks");
   const goToMyNotifications = () => router.replace("/tabs/profile/notifications");
   const goToMyReportIncident = () => router.replace("/tabs/report");
+  const goToMyAvaialibility = () => router.replace("/tabs/profile/availability");
 
   const pastel = {
     red: "#c24035ff",
@@ -117,21 +132,21 @@ export default function HomeScreen() {
         >
           <Ionicons name="alert-outline" size={32} color="#fff" />
           <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>Pending Approvals</ThemedText>
-          
+
         </TouchableOpacity>
 
-     <TouchableOpacity
-  style={[styles.coloredCard, { backgroundColor: pastel.orange, marginLeft: 10 }]}
-  onPress={() => router.push("/screens/CoordinatorDispatchedScreen")}
->
-  <Ionicons name="checkmark-done-outline" size={32} color="#fff" />
-  <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>
-    Dispatched Tasks
-  </ThemedText>
-</TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.coloredCard, { backgroundColor: pastel.orange, marginLeft: 10 }]}
+          onPress={() => router.push("/screens/CoordinatorDispatchedScreen")}
+        >
+          <Ionicons name="checkmark-done-outline" size={32} color="#fff" />
+          <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>
+            Dispatched Tasks
+          </ThemedText>
+        </TouchableOpacity>
       </View>
 
-{/* tracking for coordinator */}
+      {/* tracking for coordinator */}
       <View style={styles.row}>
         <TouchableOpacity
           style={[styles.coloredCard, { backgroundColor: pastel.gray, marginRight: 10 }]}
@@ -234,60 +249,15 @@ export default function HomeScreen() {
   );
 
   // Volunteer Dashboard
-  const VolunteerDashboard = () => (
-    <View style={styles.gridContainer}>
-      <TouchableOpacity style={[styles.fullCard, { backgroundColor: pastel.red }]} onPress={() => router.push("/tabs/profile/tasks")}>
-        <Ionicons name="list-outline" size={40} color="#fff" />
-        <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>View Assigned Tasks</ThemedText>
-      </TouchableOpacity>
-
-      <View style={styles.row}>
-        <TouchableOpacity style={[styles.coloredCard, { backgroundColor: pastel.teal, marginRight: 10 }]} onPress={goToNearbyIncidents}>
-          <Ionicons name="map-outline" size={32} color="#fff" />
-          <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>Active Incidents</ThemedText>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-  style={[styles.coloredCard, { backgroundColor: pastel.orange, marginLeft: 10 }]}
-  onPress={() => router.push("/screens/VolunteerCompletedScreen")}
->
-  <Ionicons name="checkmark-done-outline" size={32} color="#fff" />
-  <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>
-    Completed Tasks
-  </ThemedText>
-</TouchableOpacity>
-      </View>
-
-      <View style={styles.row}>
-        <TouchableOpacity style={[styles.coloredCard, { backgroundColor: pastel.purple, marginRight: 10 }]}>
-          <Ionicons name="person-outline" size={32} color="#fff" />
-          <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>Update Availability</ThemedText>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={[styles.coloredCard, { backgroundColor: pastel.green, marginLeft: 10 }]} onPress={goToMyNotifications}>
-          <View style={{ position: "relative" }}>
-            <Ionicons name="notifications-outline" size={32} color="#fff" />
-            {unreadCount > 0 && (
-              <View style={styles.badgeContainer}>
-                <ThemedText style={styles.badgeText}>{unreadCount}</ThemedText>
-              </View>
-            )}
-          </View>
-          <ThemedText type="defaultSemiBold" style={styles.cardTextLight}>
-            Notifications
-          </ThemedText>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+  { user.role === "volunteer" && <VolunteerDashboard stats={stats} /> }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 60 }}>
-        <ThemedText type="title" style={styles.header}>Dashboard</ThemedText>
-        <ThemedText type="defaultSemiBold" style={styles.greeting}>
-          Hi {user?.username ? user.username : "there"}!
+       <ThemedText type="title" style={styles.header}>Dashboard</ThemedText>
+      <ThemedText type="defaultSemiBold" style={styles.greeting}>
+          Hi {user?.firstName ? `${user.firstName} ${user.lastName}` : "there"}!
         </ThemedText>
+      <ScrollView contentContainerStyle={{ paddingBottom: 60 }}>
 
         {user.role === "resident" ? (
           <ResidentDashboard />
@@ -368,14 +338,14 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -5,
     right: -10,
-   
-    
+
+
     minWidth: 18,
     height: 18,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 4,
-    
+
   },
   badgeText: {
     color: "#f7f7f7ff",

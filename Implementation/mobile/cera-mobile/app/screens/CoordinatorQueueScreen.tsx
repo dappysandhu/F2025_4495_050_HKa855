@@ -117,7 +117,7 @@ export default function CoordinatorQueueScreen() {
       setSelectedVolunteers([]);
       setModalVisible(true);
 
-      const res = await api.get("/users?role=volunteer");
+      const res = await api.get("/users/eligible-for-dispatch");
       setVolunteers(res.data || []);
 
       const assignedIds =
@@ -254,7 +254,9 @@ export default function CoordinatorQueueScreen() {
                       color: selectedVolunteers.includes(item._id) ? "#fff" : C.text,
                     }}
                   >
-                    {item.username || item.email}
+                    {item.firstName && item.lastName
+                      ? `${item.firstName} ${item.lastName}`
+                      : item.email}
                   </Text>
                 </TouchableOpacity>
               )}

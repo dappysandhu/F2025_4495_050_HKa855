@@ -25,6 +25,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import api from "@/services/api";
 import BackHeader from "@/components/ui/BackHeader";
+import { ThemedText } from "@/components/themed-text";
 
 const { width } = Dimensions.get("window");
 
@@ -214,6 +215,7 @@ const submit = async () => {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: C.background }]}>
       <BackHeader title="Report Incident" />
+      <ThemedText type="title" style={styles.title}>Report an Incident</ThemedText>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
@@ -223,7 +225,6 @@ const submit = async () => {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={[styles.title, { color: C.text }]}>Report an Incident</Text>
 
           <Card>
             {/* Incident Type */}
@@ -420,7 +421,7 @@ const submit = async () => {
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   scrollContainer: { flexGrow: 1, padding: 16 },
-  title: { fontSize: 24, fontWeight: "800", marginBottom: 12, textAlign: "center" },
+  title: { fontSize: 24, fontWeight: "800", marginBottom: 12, marginTop: 12, textAlign: "center" },
   label: { fontSize: 13, marginBottom: 6 },
   input: {
     borderWidth: 1,
@@ -473,5 +474,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#00000090",
     justifyContent: "center",
     alignItems: "center",
+  },
+  header: {
+    textAlign: "center",
+    fontSize: 24,
+    fontWeight: "700",
+    marginBottom: 8,
   },
 });

@@ -127,16 +127,15 @@ export default function ProfileMyTasksScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: C.background }]}>
       <BackHeader title="My Tasks" />
-
+      <ThemedText type="title" style={[styles.title, { color: C.text }]}>
+        My Tasks
+      </ThemedText>
       <ScrollView
         contentContainerStyle={styles.scrollContainer}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={fetchTasks} tintColor={C.accent} />
         }
       >
-        <ThemedText type="title" style={[styles.title, { color: C.text }]}>
-          My Tasks
-        </ThemedText>
 
         {tasks.map((incident) => {
           const me = incident.assignedVolunteers?.find((v: any) => {
@@ -209,7 +208,8 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "800",
     textAlign: "center",
-    marginBottom: 16,
+    marginBottom: 12,
+    marginTop: 12,
   },
   subtitle: {
     fontSize: 15,
