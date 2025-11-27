@@ -35,7 +35,7 @@ type Incident = {
   logs?: any[];
 };
 
-export default function IncidentDetailsScreen() {
+export default function IncidentDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const scheme = useColorScheme() || "dark";
   const C = Colors[scheme as "dark" | "light"];
@@ -124,13 +124,13 @@ export default function IncidentDetailsScreen() {
             <IncidentCardDetailed incident={incident} onContactCoordinator={contactCoordinator} />
           </ScrollView>
 
-          <View style={[styles.sticky, { backgroundColor: C.background }]}>
+          {/* <View style={[styles.sticky, { backgroundColor: C.background }]}>
             <Button
               title={contacting ? "Contacting..." : "Contact Coordinator"}
               disabled={contacting}
               onPress={contactCoordinator}
             />
-          </View>
+          </View> */}
         </>
       )}
     </SafeAreaView>

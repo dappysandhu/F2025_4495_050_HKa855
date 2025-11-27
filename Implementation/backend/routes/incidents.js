@@ -1,11 +1,10 @@
 import express from "express";
 import multer from "multer";
-import fs from "fs";
-import path from "path";
+import mongoose from "mongoose";
+import cloudinary from "../config/cloudinary.js";
 import Incident from "../models/Incidents.js";
 import User from "../models/User.js";
 import { verifyToken, isCoordinator } from "../middleware/authMiddleware.js";
-import mongoose from "mongoose";
 import { notifyUser } from "../utils/notifyUser.js";
 
 const router = express.Router();
@@ -18,7 +17,6 @@ const storage = multer.diskStorage({
     cb(null, unique + path.extname(file.originalname));
   },
 });
-const upload = multer({ storage });
 
 // Log every request
 router.use((req, res, next) => {
@@ -26,40 +24,145 @@ router.use((req, res, next) => {
   next();
 });
 
-// Create incident (Resident)
+// Cloudinary config
+// cloudinary.config({
+//   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+//   api_key:    process.env.CLOUDINARY_API_KEY,
+//   api_secret: process.env.CLOUDINARY_API_SECRET,
+// });
+
+// console.log('[Cloudinary cfg @incidents]', 
+//   process.env.CLOUDINARY_CLOUD_NAME, 
+//   (process.env.CLOUDINARY_API_KEY || '').slice(0,4) + '****'
+// );
+
+
+// Multer 
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 6 * 1024 * 1024 }, // 6MB
+  fileFilter: (req, file, cb) => {
+    const ok = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/heic",
+      "image/heif",
+    ].includes(file.mimetype);
+    cb(ok ? null : new Error("Only image files are allowed"), ok);
+  },
+});
+
+
+// Single request log
+router.use((req, _res, next) => {
+  console.log("[Incidents]", req.method, req.originalUrl);
+  next();
+});
+
+// Helpers 
+const folder = process.env.CLOUDINARY_FOLDER || "cera/incidents";
+
+// Upload one buffer → { url, publicId }
+const uploadBufferToCloudinary = (buffer, filename = "incident.jpg") =>
+  new Promise((resolve, reject) => {
+    const folder = process.env.CLOUDINARY_FOLDER || "cera/incidents";
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder,
+        resource_type: "image",
+        transformation: [{ format: "jpg" }],
+        filename_override: filename,
+        unique_filename: true,
+        overwrite: false,
+      },
+      (err, result) => {
+        if (err) return reject(err);
+
+        resolve({
+          url: result.secure_url,
+          publicId: result.public_id,
+        });
+      }
+    );
+    stream.end(buffer);
+  });
+
+// delete by public IDs
+const deleteCloudinaryByPublicIds = async (publicIds = []) => {
+  if (!publicIds.length) return;
+  await Promise.all(
+    publicIds.map((id) =>
+      cloudinary.uploader.destroy(id).catch((e) => {
+        console.warn("Cloudinary destroy failed:", id, e?.message || e);
+      })
+    )
+  );
+};
+
+// extract public ID from Cloudinary URL
+const publicIdFromUrl = (secureUrl) => {
+  try {
+    const u = new URL(secureUrl);
+    const parts = u.pathname.split("/");
+    const uploadIdx = parts.findIndex((p) => p === "upload");
+    const afterUpload = parts.slice(uploadIdx + 1);
+    const noVersion =
+      afterUpload.length && /^v\d+/.test(afterUpload[0])
+        ? afterUpload.slice(1)
+        : afterUpload;
+    const last = noVersion.pop() || "";
+    const base = last.replace(/\.[^.]+$/, "");
+    return [...noVersion, base].join("/"); 
+  } catch {
+    return null;
+  }
+};
+
+// CREATE INCIDENT
 router.post("/", verifyToken, upload.array("photos", 5), async (req, res) => {
   try {
     const userId = req.user.id || req.user._id;
+
     const reporter = await User.findById(userId).select("username email role");
     if (!reporter) return res.status(404).json({ message: "Reporter not found" });
 
     const { type, description, severity, affected, location, customType } = req.body;
     const loc = location ? JSON.parse(location) : null;
 
-    const photos = (req.files || []).map(
-      (file) => `${req.protocol}://${req.get("host")}/uploads/${file.filename}`
-    );
+    const validTypes = ["fire", "flood", "medical", "rescue", "accident", "crime", "earthquake", "other"];
+    const safeType = validTypes.includes((type || "").toLowerCase()) ? type.toLowerCase() : "other";
+    const customTypeValue = safeType === "other" && customType ? customType.trim() : "";
 
-    const validTypes = [
-      "fire", "flood", "medical", "rescue", "accident", "crime", "earthquake", "other",
-    ];
-    const safeType = validTypes.includes(type?.toLowerCase())
-      ? type.toLowerCase()
-      : "other";
+    // Upload images
+    let photos = [];
+    let publicIds = [];
 
-    const customTypeValue =
-      safeType === "other" && customType ? customType.trim() : "";
+    if (req.files?.length) {
+      const uploaded = await Promise.all(
+        req.files.map((file, i) =>
+          uploadBufferToCloudinary(
+            file.buffer,
+            file.originalname || `incident_${Date.now()}_${i}.jpg`
+          )
+        )
+      );
+
+      photos = uploaded.map((u) => u.url);
+      publicIds = uploaded.map((u) => u.publicId);
+    }
 
     const incident = await Incident.create({
       reporter: userId,
       reporterName: reporter.username || "Unknown",
       type: safeType,
       customType: customTypeValue,
-      description,
+      description: description || "",
       severity: severity || "Low",
-      affected: affected || 0,
+      affected: Number(affected) || 0,
       location: loc,
       photos,
+      cloudinaryPublicIds: publicIds,
       photoUrl: photos[0] || "",
       status: "pending",
     });
@@ -78,7 +181,7 @@ router.post("/", verifyToken, upload.array("photos", 5), async (req, res) => {
     res.status(201).json(incident);
   } catch (err) {
     console.error("Incident creation error:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err?.message || "Server error creating incident" });
   }
 });
 
@@ -397,7 +500,6 @@ router.post("/:id/dispatch", verifyToken, isCoordinator, async (req, res) => {
           status: "pending",
           assignedAt: new Date(),
         });
-
         incident.logs.push({
           action: "assigned",
           target: volunteerObjectId,
@@ -432,7 +534,6 @@ router.post("/:id/dispatch", verifyToken, isCoordinator, async (req, res) => {
 // Contact coordinators (Volunteer → Coordinator)
 router.post("/:id/contact-coordinators", verifyToken, async (req, res) => {
   try {
-    const { message } = req.body;
     const incident = await Incident.findById(req.params.id);
     if (!incident) return res.status(404).json({ message: "Incident not found" });
 
@@ -465,8 +566,8 @@ router.post("/:id/contact-coordinators", verifyToken, async (req, res) => {
 
     res.json({ message: "Coordinators notified successfully" });
   } catch (err) {
-    console.error("contact-coordinators error:", err);
-    res.status(500).json({ message: "Failed to notify coordinators" });
+    console.error("Delete incident error:", err);
+    res.status(500).json({ error: err.message || "Server error" });
   }
 });
 

@@ -11,6 +11,7 @@ import {
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColorScheme } from "react-native";
 import { Colors } from "@/constants/theme";
@@ -22,6 +23,7 @@ import BackHeader from "@/components/ui/BackHeader";
 export default function ProfileMyTasksScreen() {
   const scheme = useColorScheme() || "dark";
   const C = Colors[scheme as "dark" | "light"];
+  const router = useRouter();
 
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -33,7 +35,6 @@ export default function ProfileMyTasksScreen() {
     try {
       setLoading(true);
 
-      // Get saved token & user
       const token = await AsyncStorage.getItem("token");
       const storedUser = await AsyncStorage.getItem("user");
       const parsedUser = storedUser ? JSON.parse(storedUser) : null;
@@ -41,18 +42,14 @@ export default function ProfileMyTasksScreen() {
 
       if (!token) {
         Alert.alert("Error", "No authentication token found.");
-        setLoading(false);
         return;
       }
 
-      // Apply token to API client
       api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       const res = await api.get("/incidents/assigned/me");
       const data = Array.isArray(res.data) ? res.data : [];
-
       setTasks(data);
-      console.log(`Fetched ${data.length} assigned incidents`);
     } catch (err) {
       console.error("Error fetching assigned tasks:", err);
       Alert.alert("Error", "Unable to fetch your assigned tasks.");
@@ -71,6 +68,7 @@ export default function ProfileMyTasksScreen() {
     try {
       const token = await AsyncStorage.getItem("token");
       if (!token) return Alert.alert("Error", "No authentication token.");
+
       api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       await api.post(`/incidents/${id}/accept`);
@@ -86,6 +84,7 @@ export default function ProfileMyTasksScreen() {
     try {
       const token = await AsyncStorage.getItem("token");
       if (!token) return Alert.alert("Error", "No authentication token.");
+
       api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
       await api.post(`/incidents/${id}/decline`);
@@ -97,7 +96,7 @@ export default function ProfileMyTasksScreen() {
     }
   };
 
-  /** ✅ Volunteer marks task as completed */
+  /** Volunteer marks task as completed */
   const handleComplete = async (id: string) => {
     try {
       const token = await AsyncStorage.getItem("token");
@@ -128,6 +127,7 @@ export default function ProfileMyTasksScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: C.background }]}>
       <BackHeader title="My Tasks" />
+
       <ScrollView
         contentContainerStyle={styles.scrollContainer}
         refreshControl={
@@ -140,25 +140,34 @@ export default function ProfileMyTasksScreen() {
 
         {tasks.map((incident) => {
           const me = incident.assignedVolunteers?.find((v: any) => {
-            const vId =
-              typeof v.volunteer === "object"
-                ? v.volunteer?._id
-                : v.volunteer;
+            const vId = typeof v.volunteer === "object" ? v.volunteer?._id : v.volunteer;
             return vId === user?._id;
           });
 
           const assignmentStatus = me?.status?.toLowerCase() || "pending";
+          const canOpenDetails = ["accepted", "in_progress", "completed"].includes(assignmentStatus);
 
           return (
-            <IncidentCard
+            <TouchableOpacity
               key={incident._id}
-              incident={incident}
-              role="volunteer"
-              volunteerAssignmentStatus={assignmentStatus}
-              onAccept={() => handleAccept(incident._id)}
-              onDecline={() => handleDecline(incident._id)}
-              onComplete={() => handleComplete(incident._id)} // ✅ Added this
-            />
+              activeOpacity={0.9}
+              disabled={!canOpenDetails}
+              onPress={() =>
+                canOpenDetails &&
+                router.push({
+                  pathname: "/incident/[id]",
+                  params: { id: incident._id },
+                })
+              }
+            >
+              <IncidentCard
+                incident={incident}
+                role="volunteer"
+                volunteerAssignmentStatus={assignmentStatus}
+                onAccept={() => handleAccept(incident._id)}
+                onDecline={() => handleDecline(incident._id)}
+              />
+            </TouchableOpacity>
           );
         })}
 
