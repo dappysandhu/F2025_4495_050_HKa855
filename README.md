@@ -84,7 +84,7 @@ https://www.figma.com/design/vpCsZAVwk3rjv5FQdLo53S/Untitled?node-id=0-1&t=TNJXo
 ## Releases
 You can find all official releases here:
 
-[![Download APK](https://img.shields.io/badge/Download-APK-blue?style=for-the-badge)](https://github.com/dappysandhu/CERA-backend/releases/download/v1.0.0/CERA.apk)
+[![Download APK](https://img.shields.io/badge/Download-APK-blue?style=for-the-badge)](https://github.com/dappysandhu/F2025_4495_050_HKa855/releases/tag/v1.0.0/cera-v1.0.0.apk)
 
 
 ## Collaboration
