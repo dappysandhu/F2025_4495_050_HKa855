@@ -5,7 +5,7 @@ const logSchema = new mongoose.Schema(
   {
     action: {
       type: String,
-      enum: ["assigned", "accepted", "declined", "approved", "resolved", "in_progress","completed",              // ✅ added
+      enum: ["assigned", "accepted", "declined", "approved", "resolved", "in_progress", "completed",              // ✅ added
         "contacted_coordinators",],
       required: true,
     },
@@ -62,6 +62,12 @@ const incidentSchema = new mongoose.Schema(
     severity: { type: String, enum: ["Low", "Medium", "High"], default: "Low" },
     affected: { type: Number, default: 0, min: 0 },
 
+    // Duration and timestamps
+    workedHours: { type: Number, default: 0 },   // task duration (in hours)
+    assignedAt: Date,
+    completedAt: Date,
+
+    
     location: {
       type: { type: String, enum: ["Point"], default: "Point" },
       coordinates: { type: [Number], required: true },

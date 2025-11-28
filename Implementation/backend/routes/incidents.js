@@ -415,6 +415,7 @@ router.post("/:id/decline", verifyToken, async (req, res) => {
 // Volunteer completes task
 router.post("/:id/complete", verifyToken, async (req, res) => {
   try {
+    
     const volunteerId = req.user._id;
     const incident = await Incident.findOneAndUpdate(
       { _id: req.params.id, "assignedVolunteers.volunteer": volunteerId },
@@ -489,6 +490,19 @@ router.post("/:id/dispatch", verifyToken, isCoordinator, async (req, res) => {
 
     const incident = await Incident.findById(req.params.id);
     if (!incident) return res.status(404).json({ message: "Incident not found" });
+
+    const volunteers = await User.find({ _id: { $in: volunteerIds } })
+      .select("firstName lastName status");
+
+    const blockedVolunteer = volunteers.find(v =>
+      ["away", "offline"].includes(v.status)
+    );
+
+    if (blockedVolunteer) {
+      return res.status(400).json({
+        message: `Cannot assign ${blockedVolunteer.firstName} ${blockedVolunteer.lastName}. They are currently "${blockedVolunteer.status}".`
+      });
+    }
 
     const existingIds = incident.assignedVolunteers.map(v => v?.volunteer?.toString?.()).filter(Boolean);
 
