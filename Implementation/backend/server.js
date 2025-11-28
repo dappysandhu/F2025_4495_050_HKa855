@@ -1,4 +1,6 @@
-import "../backend/loadEnv.js";
+// import "../backend/loadEnv.js";
+import dotenv from "dotenv";
+dotenv.config();
 import path from "path";
 import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
@@ -49,7 +51,7 @@ mongoose
   .connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 15000 })
   .then(() => {
     console.log("Connected to MongoDB successfully");
-    app.listen(PORT, () =>
+    app.listen(PORT,"0.0.0.0", () =>
       console.log(`Server running on http://localhost:${PORT}`)
     );
   })

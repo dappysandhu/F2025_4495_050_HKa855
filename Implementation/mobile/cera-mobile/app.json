@@ -34,7 +34,12 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "softwareKeyboardLayoutMode": "pan",
-      "package": "com.dsandhu.cera"
+      "package": "com.dsandhu.cera",
+      "config": {
+          "googleMaps": {
+            "apiKey": "YOUR_ANDROID_API_KEY"
+          }
+        }
     },
     "web": {
       "output": "static",
