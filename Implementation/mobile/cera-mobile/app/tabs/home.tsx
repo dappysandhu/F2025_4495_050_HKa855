@@ -7,10 +7,9 @@ import {
   SafeAreaView,
   ScrollView,
   Alert,
-} from "react-native";
+ useColorScheme } from "react-native";
 import { ThemedText } from "@/components/themed-text";
 import { Colors } from "@/constants/theme";
-import { useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "@/constants/config";
 import axios from "axios";
@@ -78,7 +77,7 @@ export default function HomeScreen() {
     }, [])
   );
 
-  // ⏳ Loading state
+  // Loading state
   if (loading) {
     return (
       <SafeAreaView style={[styles.centered, { backgroundColor: themeColors.background }]}>
@@ -252,23 +251,28 @@ export default function HomeScreen() {
   { user.role === "volunteer" && <VolunteerDashboard stats={stats} /> }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
-       <ThemedText type="title" style={styles.header}>Dashboard</ThemedText>
-      <ThemedText type="defaultSemiBold" style={styles.greeting}>
-          Hi {user?.firstName ? `${user.firstName} ${user.lastName}` : "there"}!
-        </ThemedText>
-      <ScrollView contentContainerStyle={{ paddingBottom: 60 }}>
+  <SafeAreaView
+    style={[styles.container, { backgroundColor: themeColors.background }]}
+  >
+    <ThemedText type="title" style={styles.header}>Dashboard</ThemedText>
+    <ThemedText type="defaultSemiBold" style={styles.greeting}>
+      Hi {user?.firstName ? `${user.firstName} ${user.lastName}` : "there"}!
+    </ThemedText>
 
-        {user.role === "resident" ? (
-          <ResidentDashboard />
-        ) : user.role === "coordinator" ? (
-          <CoordinatorDashboard />
-        ) : (
-          <VolunteerDashboard />
-        )}
-      </ScrollView>
-    </SafeAreaView>
-  );
+    <ScrollView contentContainerStyle={{ paddingBottom: 60, paddingLeft:16, paddingRight:16 }}>
+
+      {user.role === "resident" ? (
+        <ResidentDashboard />
+      ) : user.role === "coordinator" ? (
+        <CoordinatorDashboard />
+      ) : (
+        <VolunteerDashboard stats={stats} />  
+      )}
+
+    </ScrollView>
+  </SafeAreaView>
+);
+
 }
 
 const styles = StyleSheet.create({

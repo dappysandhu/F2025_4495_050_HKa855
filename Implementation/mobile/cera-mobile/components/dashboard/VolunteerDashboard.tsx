@@ -1,10 +1,14 @@
-import React from "react";
-import { View, TouchableOpacity, StyleSheet } from "react-native";
+import * as React from "react";
+import {
+  View,
+  TouchableOpacity,
+  StyleSheet,
+  useColorScheme,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { ThemedText } from "@/components/themed-text";
-import { Colors } from "@/constants/theme";
-import { useColorScheme } from "react-native";
-import { VictoryChart, VictoryLine } from "victory-native";
+import { Colors, Fonts } from "@/constants/theme";
+import { VictoryChart, VictoryBar, VictoryAxis } from "victory-native";
 import { router } from "expo-router";
 
 export default function VolunteerDashboard({ stats }: any) {
@@ -21,8 +25,18 @@ export default function VolunteerDashboard({ stats }: any) {
     orange: "#e3ab67ff",
   };
 
-  // fallback graph data if backend doesn't send any
-  const graph = (stats as any)?.graph || {
+  const axisColor = C.border;
+  const labelColor = C.subtext;
+
+  if (!stats) {
+    return (
+      <View style={styles.loadingStatsBox}>
+        <ThemedText style={{ color: "#fff" }}>Loading stats…</ThemedText>
+      </View>
+    );
+  }
+
+  const graph = stats.graph || {
     last7Days: 0,
     last30Days: 0,
     last90Days: 0,
@@ -36,63 +50,75 @@ export default function VolunteerDashboard({ stats }: any) {
 
   return (
     <View style={styles.gridContainer}>
-      {/* nly check stats, not stats.graph */}
-      {stats && (
-        <View style={[styles.statsCard, { backgroundColor: C.card }]}>
-          <ThemedText type="defaultSemiBold" style={styles.statsTitle}>
-            Your Activity Summary
-          </ThemedText>
+      <View style={[styles.statsCard, { backgroundColor: C.card }]}>
+        <ThemedText type="defaultSemiBold" style={styles.statsTitle}>
+          Your Activity Summary
+        </ThemedText>
 
-          <View style={styles.statsRow}>
-            <View style={styles.statBox}>
-              <ThemedText style={styles.statValue}>
-                {(stats.hours ?? 0).toFixed(1)}
-              </ThemedText>
-              <ThemedText style={styles.statLabel}>Hours Worked</ThemedText>
-            </View>
-
-            <View style={styles.statBox}>
-              <ThemedText style={styles.statValue}>
-                {stats.inProgress ?? 0}
-              </ThemedText>
-              <ThemedText style={styles.statLabel}>In Progress</ThemedText>
-            </View>
-
-            <View style={styles.statBox}>
-              <ThemedText style={styles.statValue}>
-                {stats.completed ?? 0}
-              </ThemedText>
-              <ThemedText style={styles.statLabel}>Completed</ThemedText>
-            </View>
+        <View style={styles.statsRow}>
+          <View style={styles.statBox}>
+            <ThemedText style={styles.statValue}>
+              {(stats.hours ?? 0).toFixed(1)}
+            </ThemedText>
+            <ThemedText style={styles.statLabel}>Hours Worked</ThemedText>
           </View>
 
-          {/* GRAPH */}
-          <View style={{ marginTop: 20 }}>
-            <ThemedText type="defaultSemiBold" style={styles.statsTitle}>
-              Last 3 Months
+          <View style={styles.statBox}>
+            <ThemedText style={styles.statValue}>
+              {stats.inProgress ?? 0}
             </ThemedText>
+            <ThemedText style={styles.statLabel}>In Progress</ThemedText>
+          </View>
 
-            <View style={{ alignItems: "center" }}>
-              <VictoryChart
-                height={160}
-                width={330}
-                padding={{ top: 20, bottom: 40, left: 45, right: 20 }}
-              >
-                <VictoryLine
-                  data={lineData}
-                  interpolation="monotoneX"
-                  animate={{ duration: 500 }}
-                  style={{
-                    data: { stroke: pastel.green, strokeWidth: 3 },
-                  }}
-                />
-              </VictoryChart>
-            </View>
+          <View style={styles.statBox}>
+            <ThemedText style={styles.statValue}>
+              {stats.completed ?? 0}
+            </ThemedText>
+            <ThemedText style={styles.statLabel}>Completed</ThemedText>
           </View>
         </View>
-      )}
 
-      {/* Existing Cards */}
+        {/* GRAPH */}
+        {/* MONTHLY HOURS CHART */}
+        <View style={{ marginTop: 20 }}>
+          <ThemedText type="defaultSemiBold" style={styles.statsTitle}>
+            Hours Worked (Last 3 Months)
+          </ThemedText>
+
+          <VictoryChart
+            height={200}
+            width={330}
+            domainPadding={{ x: 40 }}
+            padding={{ top: 20, bottom: 50, left: 50, right: 20 }}
+          >
+            <VictoryAxis
+              style={{
+                axis: { stroke: axisColor },
+                tickLabels: { fill: labelColor, fontSize: 13 },
+              }}
+            />
+
+            <VictoryAxis
+              dependentAxis
+              style={{
+                axis: { stroke: axisColor },
+                tickLabels: { fill: labelColor, fontSize: 13 },
+              }}
+            />
+
+            <VictoryBar
+              data={stats.monthly}
+              x="month"
+              y="hours"
+              barWidth={30}
+              cornerRadius={{ top: 6 }}
+              style={{ data: { fill: pastel.orange } }}
+            />
+          </VictoryChart>
+        </View>
+      </View>
+
+      {/* Other Cards */}
       <TouchableOpacity
         style={[styles.fullCard, { backgroundColor: pastel.red }]}
         onPress={() => router.push("/tabs/profile/tasks")}
@@ -105,7 +131,10 @@ export default function VolunteerDashboard({ stats }: any) {
 
       <View style={styles.row}>
         <TouchableOpacity
-          style={[styles.coloredCard, { backgroundColor: pastel.teal, marginRight: 10 }]}
+          style={[
+            styles.coloredCard,
+            { backgroundColor: pastel.teal, marginRight: 10 },
+          ]}
           onPress={() => router.replace("/tabs/incidents")}
         >
           <Ionicons name="map-outline" size={32} color="#fff" />
@@ -113,7 +142,10 @@ export default function VolunteerDashboard({ stats }: any) {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.coloredCard, { backgroundColor: pastel.orange, marginLeft: 10 }]}
+          style={[
+            styles.coloredCard,
+            { backgroundColor: pastel.orange, marginLeft: 10 },
+          ]}
           onPress={() => router.push("/screens/VolunteerCompletedScreen")}
         >
           <Ionicons name="checkmark-done-outline" size={32} color="#fff" />
@@ -123,15 +155,23 @@ export default function VolunteerDashboard({ stats }: any) {
 
       <View style={styles.row}>
         <TouchableOpacity
-          style={[styles.coloredCard, { backgroundColor: pastel.purple, marginRight: 10 }]}
+          style={[
+            styles.coloredCard,
+            { backgroundColor: pastel.purple, marginRight: 10 },
+          ]}
           onPress={() => router.push("/tabs/profile/availability")}
         >
           <Ionicons name="person-outline" size={32} color="#fff" />
-          <ThemedText style={styles.cardTextLight}>Update Availability</ThemedText>
+          <ThemedText style={styles.cardTextLight}>
+            Update Availability
+          </ThemedText>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.coloredCard, { backgroundColor: pastel.green, marginLeft: 10 }]}
+          style={[
+            styles.coloredCard,
+            { backgroundColor: pastel.green, marginLeft: 10 },
+          ]}
           onPress={() => router.push("/tabs/profile/notifications")}
         >
           <Ionicons name="notifications-outline" size={32} color="#fff" />
@@ -142,10 +182,12 @@ export default function VolunteerDashboard({ stats }: any) {
   );
 }
 
-
 const styles = StyleSheet.create({
+  loadingStatsBox: {
+    padding: 20,
+    alignItems: "center",
+  },
   gridContainer: { alignItems: "center" },
-
   statsCard: {
     width: "100%",
     padding: 16,
@@ -175,7 +217,6 @@ const styles = StyleSheet.create({
     color: "#bbb",
     marginTop: 4,
   },
-
   row: {
     flexDirection: "row",
     justifyContent: "space-between",

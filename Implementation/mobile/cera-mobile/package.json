@@ -57,7 +57,7 @@
     "react-native-toast-message": "^2.3.3",
     "react-native-web": "~0.21.0",
     "react-native-webview": "^13.16.0",
-    "victory-native": "^36.6.11"
+    "victory-native": "^36.9.2"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",

@@ -6,10 +6,12 @@ import cloudinary from "../config/cloudinary.js";
 import multer from "multer";
 import bcrypt from "bcryptjs";
 
-
 const router = express.Router();
 
-const upload = multer({ limits: { fileSize: 10 * 1024 * 1024 }, dest: "uploads/" });
+const upload = multer({
+  limits: { fileSize: 10 * 1024 * 1024 },
+  dest: "uploads/",
+});
 
 //  get current user profile
 router.get("/me", verifyToken, async (req, res) => {
@@ -22,29 +24,32 @@ router.get("/me", verifyToken, async (req, res) => {
   }
 });
 
-
 //
 // UPDATE PROFILE PHOTO (CLOUDINARY)
 //
-router.patch("/me/avatar", verifyToken, upload.single("avatar"), async (req, res) => {
-  try {
-    if (!req.file?.path) {
-      return res.status(400).json({ message: "Image upload failed" });
+router.patch(
+  "/me/avatar",
+  verifyToken,
+  upload.single("avatar"),
+  async (req, res) => {
+    try {
+      if (!req.file?.path) {
+        return res.status(400).json({ message: "Image upload failed" });
+      }
+
+      const user = await User.findByIdAndUpdate(
+        req.user._id,
+        { avatarUrl: req.file.path },
+        { new: true }
+      ).select("-passwordHash");
+
+      res.json({ message: "Avatar updated", user });
+    } catch (err) {
+      console.error("Avatar upload error:", err);
+      res.status(500).json({ error: "Failed to upload avatar" });
     }
-
-    const user = await User.findByIdAndUpdate(
-      req.user._id,
-      { avatarUrl: req.file.path },
-      { new: true }
-    ).select("-passwordHash");
-
-    res.json({ message: "Avatar updated", user });
-  } catch (err) {
-    console.error("Avatar upload error:", err);
-    res.status(500).json({ error: "Failed to upload avatar" });
   }
-});
-
+);
 
 //
 // UPDATE USER STATUS (active / busy / away / offline)
@@ -70,7 +75,6 @@ router.patch("/me/status", verifyToken, async (req, res) => {
   }
 });
 
-
 //
 // ADD WORK HOURS FOR INCIDENT
 //
@@ -95,7 +99,11 @@ router.post("/me/work-log", verifyToken, async (req, res) => {
 
     await user.save();
 
-    res.json({ message: "Work hours logged", entry, total: user.totalVolunteerHours });
+    res.json({
+      message: "Work hours logged",
+      entry,
+      total: user.totalVolunteerHours,
+    });
   } catch (err) {
     console.error("Work log error:", err);
     res.status(500).json({ error: err.message });
@@ -108,22 +116,84 @@ router.get("/:id/stats", verifyToken, async (req, res) => {
     const user = await User.findById(req.params.id).select("workLogs");
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    const hours = user.workLogs.reduce((sum, w) => sum + Number(w.hours || 0), 0);
+    // TOTAL HOURS
+    const hours = user.workLogs.reduce(
+      (sum, w) => sum + Number(w.hours || 0),
+      0
+    );
+
+    // IN PROGRESS + COMPLETED COUNTS
+    const assigned = await Incident.find({
+      "assignedVolunteers.volunteer": user._id,
+    }).select("status");
+
+    const inProgress = assigned.filter(
+      (i) => i.status === "in_progress"
+    ).length;
+    const completed = assigned.filter((i) => i.status === "completed").length;
+
+    // REAL 3-MONTH TIMELINE
+    const now = new Date();
+    const last3Months = [];
+
+    for (let i = 0; i < 3; i++) {
+      const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+
+      const year = monthDate.getFullYear();
+      const month = monthDate.getMonth(); // 0-11
+
+      const monthHours = user.workLogs
+        .filter((log) => {
+          const d = new Date(log.date);
+          return d.getFullYear() === year && d.getMonth() === month;
+        })
+        .reduce((sum, log) => sum + Number(log.hours || 0), 0);
+
+      last3Months.push({
+        month: monthDate.toLocaleString("default", { month: "short" }),
+        hours: monthHours,
+      });
+    }
+
+    // reverse to chronological order (old → new)
+    last3Months.reverse();
+
+    res.json({
+      hours,
+      inProgress,
+      completed,
+      monthly: last3Months,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET volunteer stats (MUST BE ABOVE /:id/files and /:id)
+router.get("/:id/stats", verifyToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select("workLogs");
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const hours = user.workLogs.reduce(
+      (sum, w) => sum + Number(w.hours || 0),
+      0
+    );
 
     const assigned = await Incident.find({
       "assignedVolunteers.volunteer": user._id,
     }).select("status");
 
-    const inProgress = assigned.filter(i => i.status === "in_progress").length;
-    const completed = assigned.filter(i => i.status === "completed").length;
+    const inProgress = assigned.filter(
+      (i) => i.status === "in_progress"
+    ).length;
+    const completed = assigned.filter((i) => i.status === "completed").length;
 
     res.json({ hours, inProgress, completed });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
-
-
 
 // APPROVE VOLUNTEER (COORDINATOR ONLY)
 router.post("/:id/approve", verifyToken, isCoordinator, async (req, res) => {
@@ -147,8 +217,6 @@ router.post("/:id/approve", verifyToken, isCoordinator, async (req, res) => {
   }
 });
 
-
-
 //
 // DECLINE VOLUNTEER
 //
@@ -161,7 +229,6 @@ router.post("/:id/decline", verifyToken, isCoordinator, async (req, res) => {
     res.status(500).json({ error: "Failed to decline volunteer" });
   }
 });
-
 
 //
 // GET PENDING VOLUNTEERS
@@ -179,7 +246,6 @@ router.get("/pending", verifyToken, isCoordinator, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch pending volunteers" });
   }
 });
-
 
 //
 // GET ALL USERS
@@ -199,7 +265,6 @@ router.get("/", verifyToken, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch users" });
   }
 });
-
 
 //
 // UPDATE LOCATION GEO
@@ -225,7 +290,6 @@ router.patch("/me/location", verifyToken, async (req, res) => {
   }
 });
 
-
 //
 // SAVE PUSH TOKEN
 //
@@ -247,7 +311,6 @@ router.post("/me/push-token", verifyToken, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 
 //
 // FINAL — UPDATE PROFILE (NEW FIELDS)
@@ -283,7 +346,9 @@ router.patch("/me", verifyToken, async (req, res) => {
       updates.emergencyContacts &&
       !Array.isArray(updates.emergencyContacts)
     ) {
-      return res.status(400).json({ message: "Emergency contacts must be array" });
+      return res
+        .status(400)
+        .json({ message: "Emergency contacts must be array" });
     }
 
     const user = await User.findByIdAndUpdate(req.user._id, updates, {
@@ -304,7 +369,9 @@ router.patch("/me/password", verifyToken, async (req, res) => {
     const { currentPassword, newPassword } = req.body;
 
     if (!currentPassword || !newPassword) {
-      return res.status(400).json({ message: "Current and new password are required." });
+      return res
+        .status(400)
+        .json({ message: "Current and new password are required." });
     }
 
     const user = await User.findById(req.user._id);
@@ -328,7 +395,9 @@ router.patch("/me/password", verifyToken, async (req, res) => {
     return res.json({ message: "Password updated successfully." });
   } catch (err) {
     console.error("Password update error:", err);
-    return res.status(500).json({ message: "Server error while updating password." });
+    return res
+      .status(500)
+      .json({ message: "Server error while updating password." });
   }
 });
 
@@ -351,7 +420,6 @@ router.post("/me/availability", verifyToken, async (req, res) => {
     if (!day || !from || !to)
       return res.status(400).json({ message: "Missing fields" });
 
-
     const user = await User.findById(req.user._id);
 
     // helper for saving one day
@@ -371,20 +439,24 @@ router.post("/me/availability", verifyToken, async (req, res) => {
     };
 
     if (repeatAllWeek) {
-      ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].forEach((d) => saveDay(d));
+      ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].forEach((d) =>
+        saveDay(d)
+      );
     } else {
       saveDay(day);
     }
 
     await user.save();
 
-    res.json({ message: "Availability saved", availability: user.availability });
+    res.json({
+      message: "Availability saved",
+      availability: user.availability,
+    });
   } catch (err) {
     console.log(err);
     res.status(500).json({ error: "Failed to save availability" });
   }
 });
-
 
 // files handling  (upload, delete, list)
 // Get current user's files
@@ -397,7 +469,6 @@ router.get("/me/files", verifyToken, async (req, res) => {
     res.status(500).json({ error: "Failed to load files" });
   }
 });
-
 
 // UPLOAD file
 router.post(
@@ -444,8 +515,6 @@ router.post(
   }
 );
 
-
-
 // DELETE file
 router.delete("/me/files/:fileId", verifyToken, async (req, res) => {
   try {
@@ -471,24 +540,25 @@ router.get("/:id/files", verifyToken, isCoordinator, async (req, res) => {
 });
 
 // Get eligible volunteers for dispatch
-router.get("/eligible-for-dispatch", verifyToken, isCoordinator, async (req, res) => {
-  try {
-    const volunteers = await User.find({
-      role: "volunteer",
-      approved: true,
-      certified: true,
-      status: { $in: ["active", "busy"] },
-    })
-      .select("-passwordHash");
+router.get(
+  "/eligible-for-dispatch",
+  verifyToken,
+  isCoordinator,
+  async (req, res) => {
+    try {
+      const volunteers = await User.find({
+        role: "volunteer",
+        approved: true,
+        certified: true,
+        status: { $in: ["active", "busy"] },
+      }).select("-passwordHash");
 
-    res.json(volunteers);
-  } catch (err) {
-    console.error("Error loading dispatch volunteers:", err);
-    res.status(500).json({ error: "Failed to load volunteers" });
+      res.json(volunteers);
+    } catch (err) {
+      console.error("Error loading dispatch volunteers:", err);
+      res.status(500).json({ error: "Failed to load volunteers" });
+    }
   }
-});
-
-
-
+);
 
 export default router;
