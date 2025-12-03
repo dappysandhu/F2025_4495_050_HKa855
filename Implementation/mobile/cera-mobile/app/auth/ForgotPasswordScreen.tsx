@@ -1,12 +1,20 @@
 import React, { useState } from "react";
-import { TextInput, TouchableOpacity, StyleSheet, Alert , useColorScheme } from "react-native";
+import {
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  useColorScheme,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+
+import { sendPasswordResetEmail } from "firebase/auth";
+import { auth } from "@/firebase";
 
 import { ThemedView } from "@/components/themed-view";
 import { ThemedText } from "@/components/themed-text";
 import { Colors } from "@/constants/theme";
-import { API_BASE_URL } from "@/constants/config";
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState("");
@@ -23,25 +31,29 @@ export default function ForgotPasswordScreen() {
 
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
 
-      const data = await response.json();
-      Alert.alert("Success", data.message);
+      // Firebase handles everything
+      await sendPasswordResetEmail(auth, email);
+
       setLoading(false);
-    } catch (error) {
+
+      Alert.alert(
+        "Reset Email Sent",
+        "If the email exists, you will receive a password reset link."
+      );
+
+      router.back(); // Or router.push("/auth/login")
+    } catch (err) {
       setLoading(false);
-      Alert.alert("Error", "Unable to send reset email");
+      const message =
+        err instanceof Error ? err.message : typeof err === "string" ? err : "Unable to send reset link.";
+      Alert.alert("Error", message);
     }
   };
 
   return (
     <ThemedView style={[styles.container, { backgroundColor: C.background }]}>
-      
-      {/* Header */}
+
       <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
         <Ionicons name="arrow-back" size={28} color={C.text} />
       </TouchableOpacity>
@@ -50,7 +62,6 @@ export default function ForgotPasswordScreen() {
         Forgot Password
       </ThemedText>
 
-      {/* Input */}
       <TextInput
         style={[
           styles.input,
@@ -64,18 +75,17 @@ export default function ForgotPasswordScreen() {
         placeholderTextColor={C.icon}
         value={email}
         onChangeText={setEmail}
-        keyboardType="email-address"
         autoCapitalize="none"
+        keyboardType="email-address"
       />
 
-      {/* Submit Button */}
       <TouchableOpacity
         style={[styles.button, { backgroundColor: "#C04A2B" }]}
         onPress={handleSubmit}
         disabled={loading}
       >
         <ThemedText type="defaultSemiBold" style={styles.buttonText}>
-          {loading ? "Sending..." : "Send Reset Link"}
+          {loading ? "Sending..." : "Send Reset Email"}
         </ThemedText>
       </TouchableOpacity>
     </ThemedView>

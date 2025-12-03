@@ -48,7 +48,7 @@ const userSchema = new mongoose.Schema(
     emergencyContacts: { type: [EmergencyContactSchema], default: [] },
 
     // Auth
-    passwordHash: { type: String, required: true },
+    passwordHash: { type: String, required: null },
 
     // Roles
     role: {

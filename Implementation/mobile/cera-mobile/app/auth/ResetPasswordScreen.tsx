@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { TextInput, TouchableOpacity, StyleSheet, Alert , useColorScheme } from "react-native";
-import { useLocalSearchParams, router } from "expo-router";
+import { TextInput, TouchableOpacity, StyleSheet, Alert, useColorScheme } from "react-native";
+import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import { ThemedView } from "@/components/themed-view";
@@ -9,7 +9,7 @@ import { Colors } from "@/constants/theme";
 import { API_BASE_URL } from "@/constants/config";
 
 export default function ResetPasswordScreen() {
-  const { token } = useLocalSearchParams();
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -17,22 +17,24 @@ export default function ResetPasswordScreen() {
   const C = Colors[scheme || "light"];
 
   const handleReset = async () => {
+    if (!email) return Alert.alert("Missing Email", "Enter your email");
     if (!password) return Alert.alert("Missing Password", "Enter a new password");
 
     try {
       setLoading(true);
 
-      const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+      const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, newPassword: password }),
+        body: JSON.stringify({ email, newPassword: password }),
       });
 
-      const data = await response.json();
+      const data = await res.json();
       setLoading(false);
 
       Alert.alert("Success", data.message);
       router.push("/auth/login");
+
     } catch (error) {
       setLoading(false);
       Alert.alert("Error", "Unable to reset password");
@@ -42,7 +44,6 @@ export default function ResetPasswordScreen() {
   return (
     <ThemedView style={[styles.container, { backgroundColor: C.background }]}>
       
-      {/* Header */}
       <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
         <Ionicons name="arrow-back" size={28} color={C.text} />
       </TouchableOpacity>
@@ -50,6 +51,23 @@ export default function ResetPasswordScreen() {
       <ThemedText type="title" style={styles.title}>
         Reset Password
       </ThemedText>
+
+      <TextInput
+        style={[
+          styles.input,
+          {
+            backgroundColor: C.background,
+            color: C.text,
+            borderColor: C.icon,
+          },
+        ]}
+        placeholder="Enter your email"
+        placeholderTextColor={C.icon}
+        value={email}
+        onChangeText={setEmail}
+        autoCapitalize="none"
+        keyboardType="email-address"
+      />
 
       <TextInput
         style={[
@@ -76,6 +94,7 @@ export default function ResetPasswordScreen() {
           {loading ? "Updating..." : "Reset Password"}
         </ThemedText>
       </TouchableOpacity>
+
     </ThemedView>
   );
 }

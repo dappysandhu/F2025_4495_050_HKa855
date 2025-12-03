@@ -13,6 +13,51 @@ const upload = multer({
   dest: "uploads/",
 });
 
+// get all volunteers with filtering and search
+router.get("/", verifyToken, async (req, res) => {
+  try {
+    const { status, skill, certified, search } = req.query;
+
+    const filter = {
+      role: "volunteer",
+      approved: true,
+    };
+
+    if (status) {
+      filter.status = status;
+    }
+
+    if (certified === "true") {
+      filter.certified = true;
+    }
+
+    if (skill) {
+      filter.skills = { $regex: new RegExp(skill, "i") };
+    }
+
+    if (search) {
+      const words = String(search).trim().split(/\s+/);
+      const regexList = words.map((word) => new RegExp(word, "i"));
+
+      filter.$or = [
+        { firstName: { $in: regexList } },
+        { lastName: { $in: regexList } },
+        { username: { $in: regexList } },
+        { email: { $in: regexList } },
+      ];
+    }
+
+    console.log("GET /users query:", req.query);
+    console.log("GET /users filter:", filter);
+
+    const users = await User.find(filter).select("-passwordHash");
+    res.json(users);
+  } catch (err) {
+    console.error("Fetch users error:", err);
+    res.status(500).json({ error: "Failed to fetch users" });
+  }
+});
+
 //  get current user profile
 router.get("/me", verifyToken, async (req, res) => {
   try {
@@ -109,6 +154,7 @@ router.post("/me/work-log", verifyToken, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 // GET volunteer stats (MUST BE ABOVE /:id/files and /:id)
 router.get("/:id/stats", verifyToken, async (req, res) => {
@@ -560,5 +606,6 @@ router.get(
     }
   }
 );
+
 
 export default router;
