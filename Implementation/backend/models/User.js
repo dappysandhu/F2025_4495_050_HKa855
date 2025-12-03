@@ -22,7 +22,6 @@ const FileSchema = new mongoose.Schema(
   { _id: true }
 );
 
-
 const userSchema = new mongoose.Schema(
   {
     username: { type: String, required: true },
@@ -49,7 +48,7 @@ const userSchema = new mongoose.Schema(
     emergencyContacts: { type: [EmergencyContactSchema], default: [] },
 
     // Auth
-    passwordHash: { type: String, required: true },
+    passwordHash: { type: String, required: null },
 
     // Roles
     role: {
@@ -91,7 +90,7 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
 
-   files: {
+    files: {
       type: [FileSchema],
       default: [],
     },
@@ -100,19 +99,23 @@ const userSchema = new mongoose.Schema(
 
     availability: [
       {
-        weekNumber: Number,    
-        weekRange: String,     
-        day: String,           
-        from: String,        
-        to: String,             
+        weekNumber: Number,
+        weekRange: String,
+        day: String,
+        from: String,
+        to: String,
         repeatAllWeek: Boolean,
-      }
+      },
     ],
-
 
     // Push notifications
     pushTokens: [{ platform: String, token: String }],
+
+    // reset password
+    resetPasswordToken: { type: String, default: null },
+    resetPasswordExpires: { type: Date, default: null },
   },
+
   { timestamps: true }
 );
 
