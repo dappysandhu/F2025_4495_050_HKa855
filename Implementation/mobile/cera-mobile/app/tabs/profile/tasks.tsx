@@ -166,6 +166,7 @@ export default function ProfileMyTasksScreen() {
                 volunteerAssignmentStatus={assignmentStatus}
                 onAccept={() => handleAccept(incident._id)}
                 onDecline={() => handleDecline(incident._id)}
+                onComplete={() => handleComplete(incident._id)}
               />
             </TouchableOpacity>
           );

@@ -415,9 +415,13 @@ router.post("/:id/decline", verifyToken, async (req, res) => {
 // Volunteer completes task
 router.post("/:id/complete", verifyToken, async (req, res) => {
   try {
-    const volunteerId = req.user._id;
+    const volunteerId = new mongoose.Types.ObjectId(req.user._id);
+
     const incident = await Incident.findOneAndUpdate(
-      { _id: req.params.id, "assignedVolunteers.volunteer": volunteerId },
+      {
+        _id: new mongoose.Types.ObjectId(req.params.id),
+        "assignedVolunteers.volunteer": volunteerId
+      },
       {
         $set: {
           "assignedVolunteers.$.status": "completed",
@@ -438,8 +442,10 @@ router.post("/:id/complete", verifyToken, async (req, res) => {
       .populate("reporter", "username email role")
       .populate("assignedVolunteers.volunteer", "username email role");
 
-    if (!incident) return res.status(404).json({ message: "Incident not found" });
+    if (!incident)
+      return res.status(404).json({ message: "Incident not found" });
 
+    // Notify coordinators
     const coordinators = await User.find({ role: "coordinator" });
     for (const coord of coordinators) {
       await notifyUser(
@@ -455,7 +461,6 @@ router.post("/:id/complete", verifyToken, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 // Approve incident (Coordinator)
 router.post("/:id/approve", verifyToken, isCoordinator, async (req, res) => {
   try {
